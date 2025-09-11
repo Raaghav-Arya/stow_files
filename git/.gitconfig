@@ -1,0 +1,8 @@
+[user]
+	name = Raaghav Arya
+	email = raaghav448@gmail.com
+[core]
+	editor = ~/.git-editor.sh
+[init]
+	defaultBranch = main	
+
