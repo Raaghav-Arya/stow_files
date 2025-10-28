@@ -5,4 +5,5 @@
 	editor = ~/.git-editor.sh
 [init]
 	defaultBranch = main	
-
+[diff]
+    external = difft
