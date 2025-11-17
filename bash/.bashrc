@@ -4,8 +4,8 @@
 
 # If not running interactively, don't do anything
 case $- in
-*i*) ;;
-*) return ;;
+    *i*) ;;
+      *) return;;
 esac
 
 # don't put duplicate lines or lines starting with space in the history.
@@ -32,12 +32,12 @@ shopt -s checkwinsize
 
 # set variable identifying the chroot you work in (used in the prompt below)
 if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-  debian_chroot=$(cat /etc/debian_chroot)
+    debian_chroot=$(cat /etc/debian_chroot)
 fi
 
 # set a fancy prompt (non-color, unless we know we "want" color)
 case "$TERM" in
-xterm-color | *-256color) color_prompt=yes ;;
+    xterm-color|*-256color) color_prompt=yes;;
 esac
 
 # uncomment for a colored prompt, if the terminal has the capability; turned
@@ -46,48 +46,49 @@ esac
 #force_color_prompt=yes
 
 if [ -n "$force_color_prompt" ]; then
-  if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-    # We have color support; assume it's compliant with Ecma-48
-    # (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-    # a case would tend to support setf rather than setaf.)
-    color_prompt=yes
-  else
-    color_prompt=
-  fi
+    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
+	# We have color support; assume it's compliant with Ecma-48
+	# (ISO/IEC-6429). (Lack of such support is extremely rare, and such
+	# a case would tend to support setf rather than setaf.)
+	color_prompt=yes
+    else
+	color_prompt=
+    fi
 fi
 
 if [ "$color_prompt" = yes ]; then
-  PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 else
-  PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 fi
 unset color_prompt force_color_prompt
 
 # If this is an xterm set the title to user@host:dir
 case "$TERM" in
-xterm* | rxvt*)
-  PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-  ;;
-*) ;;
+xterm*|rxvt*)
+    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
+    ;;
+*)
+    ;;
 esac
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
-  test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-  alias ls='ls --color=auto'
-  #alias dir='dir --color=auto'
-  #alias vdir='vdir --color=auto'
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    #alias dir='dir --color=auto'
+    #alias vdir='vdir --color=auto'
 
-  alias grep='grep --color=auto'
-  alias fgrep='fgrep --color=auto'
-  alias egrep='egrep --color=auto'
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
 fi
 
 # colored GCC warnings and errors
 #export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
 # some more ls aliases
-alias ll='ls -alF'
+alias ll='ls -alFh'
 alias la='ls -A'
 alias l='ls -CF'
 
@@ -101,7 +102,16 @@ alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
 if [ -f ~/.bash_aliases ]; then
-  . ~/.bash_aliases
+    . ~/.bash_aliases
+fi
+
+if [ -f ~/.bash_ti_proxies ]; then
+    . ~/.bash_ti_proxies
+fi
+
+
+if [ -f ~/.bash_sensitive ]; then
+    . ~/.bash_sensitive
 fi
 
 # enable programmable completion features (you don't need to enable
@@ -115,16 +125,45 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# Swap esc and capslock
-setxkbmap -option caps:swapescape &
 
-. "$HOME/.atuin/bin/env"
+# pyenv settings
+command -v pyenv >/dev/null || export PATH=":${HOME}/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
 
-[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh
-eval "$(atuin init bash)"
-. "$HOME/.cargo/env"
+export EDITOR="nvim"
+export VISUAL="nvim"
+
+if [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+fi
+
+shopt -s cdable_vars
+export sdwa="/home/a0507112/sdk_workareas/"
+
+shopt -s globstar
+
+## To run .env files to declare paths and SOC and TISDK_IMAGE  as variables in work area for better navigation
+autoenv() {
+# Check if the current directory is different from the last one and if .env exists
+    if [ "$PWD" != "$LAST_PWD" ] && [ -f .env ]; then
+        source .env
+        export LAST_PWD="$PWD"
+    fi
+}
+# Add autoenv to the PROMPT_COMMAND to run it before each prompt
+PROMPT_COMMAND="autoenv;
+$PROMPT_COMMAND"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-alias config='/usr/bin/git --git-dir=/home/raaghav/.cfg/ --work-tree=/home/raaghav'
+
+export PATH="/home/a0507112/.cargo/bin:${PATH}"
+
+export LANG="en_IN.UTF-8"
+export LC_ALL="en_IN.UTF-8"
+
+eval "$(zoxide init bash)"
+alias bear="no_proxy=localhost,127.0.0.1 bear"
+

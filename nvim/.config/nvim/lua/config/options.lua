@@ -9,3 +9,6 @@ vim.o.shiftwidth = 4 -- Number of spaces inserted when indenting
 
 vim.g.autoformat = false -- Sets autoformat to false
 
+-- Enable system clipboard integration
+vim.opt.clipboard = "unnamedplus" -- Use system clipboard for all yank/delete/paste operations
+

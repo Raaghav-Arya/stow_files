@@ -4,10 +4,10 @@
 local opts = { noremap = true, silent = true }
 
 -- Center cursor when scrolling
-vim.keymap.set("n", "<C-d>", "<C-d>zz", opts)
-vim.keymap.set("n", "<C-u>", "<C-u>zz", opts)
-vim.keymap.set("n", "<C-f>", "<C-f>zz", opts)
-vim.keymap.set("n", "<C-b>", "<C-b>zz", opts)
+vim.keymap.set({"n", "i"}, "<C-d>", "<C-d>zz", opts)
+vim.keymap.set({"n", "i"}, "<C-u>", "<C-u>zz", opts)
+vim.keymap.set({"n", "i"}, "<C-f>", "<C-f>zz", opts)
+vim.keymap.set({"n", "i"}, "<C-b>", "<C-b>zz", opts)
 
 -- Resize windows with Alt + h/j/k/l
 vim.keymap.set("n", "<A-h>", "<cmd>vertical resize -2<CR>", { noremap = true, silent = true, desc = "Resize window left" })
@@ -33,3 +33,17 @@ vim.keymap.set("n", "yX", '"+X', { noremap = true, desc = "Cut character before 
 
 -- Cut in visual mode: just use 'x' (simpler)
 vim.keymap.set("v", "x", '"+d', { noremap = true, desc = "Cut selection to clipboard" })
+
+-- Terminal mode clipboard mappings for better integration with sidekick
+vim.keymap.set("t", "<C-S-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
+vim.keymap.set("t", "<C-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
+
+-- Easy escape from terminal mode
+vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { noremap = true, desc = "Exit terminal mode" })
+
+-- Navigate between Neovim and terminal windows
+vim.keymap.set("t", "<C-h>", "<C-\\><C-n><C-w>h", { noremap = true, desc = "Navigate left from terminal" })
+vim.keymap.set("t", "<C-j>", "<C-\\><C-n><C-w>j", { noremap = true, desc = "Navigate down from terminal" })
+vim.keymap.set("t", "<C-k>", "<C-\\><C-n><C-w>k", { noremap = true, desc = "Navigate up from terminal" })
+vim.keymap.set("t", "<C-l>", "<C-\\><C-n><C-w>l", { noremap = true, desc = "Navigate right from terminal" })
+
