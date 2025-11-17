@@ -1,13 +1,9 @@
 return {
-    -- Disable snacks.nvim terminal feature and remove its keybindings
+    -- Disable snacks.nvim terminal feature
     {
         "folke/snacks.nvim",
         opts = {
             terminal = { enabled = false },
-        },
-        keys = {
-            { "<C-/>", false }, -- Disable default terminal toggle
-            { "<c-_>", false }, -- Disable alternate terminal toggle (some terminals send this for Ctrl-/)
         },
     },
 
@@ -17,11 +13,11 @@ return {
         cmd = "ToggleTerm",
         keys = {
             -- Toggle terminal: show/hide terminal, or create if none exists
-            { "<leader>tt", "<cmd>ToggleTerm<cr>", desc = "Toggle Terminal", mode = { "n", "t" } },
+            { "<M-/>", "<cmd>ToggleTerm<cr>", desc = "Toggle Terminal", mode = { "n", "t", "i" } },
 
             -- End current terminal: completely shutdown and remove the current terminal
             {
-                "<leader>tq",
+                "<M-q>",
                 function()
                     local _, term = require("toggleterm.terminal").identify()
                     if term then
@@ -29,12 +25,12 @@ return {
                     end
                 end,
                 desc = "End Current Terminal",
-                mode = { "n" },
+                mode = { "n", "t", "i", "v" },
             },
 
             -- New terminal: close any visible terminal and create a new one with next available ID
             {
-                "<leader>tn",
+                "<M-t>",
                 function()
                     local terms = require("toggleterm.terminal")
                     local ui = require("toggleterm.ui")
@@ -47,14 +43,19 @@ return {
 
                     -- Create and open new terminal with next available ID
                     vim.cmd(terms.next_id() .. "ToggleTerm direction=horizontal")
+
+                    -- Enter terminal mode after opening (defer to ensure terminal is ready)
+                    vim.schedule(function()
+                        vim.cmd("startinsert")
+                    end)
                 end,
                 desc = "New Terminal",
-                mode = { "n" },
+                mode = { "n", "t", "i", "v" },
             },
 
             -- Terminal picker: select from existing terminals by their working directory
             {
-                "<leader>ts",
+                "<M-s>",
                 function()
                     local terms = require("toggleterm.terminal")
                     local terminals = terms.get_all(true)
@@ -100,15 +101,20 @@ return {
                         end
 
                         vim.cmd(term.id .. "ToggleTerm")
+
+                        -- Enter terminal mode after opening (defer to ensure terminal is ready)
+                        vim.schedule(function()
+                            vim.cmd("startinsert")
+                        end)
                     end)
                 end,
                 desc = "Terminal Picker",
-                mode = { "n" },
+                mode = { "n", "t" },
             },
 
             -- Next terminal: cycle to the next terminal in the list
             {
-                "<leader>tl",
+                "<M-l>",
                 function()
                     local terms = require("toggleterm.terminal")
                     local all_terms = terms.get_all(true)
@@ -141,12 +147,12 @@ return {
                     end
                 end,
                 desc = "Next Terminal",
-                mode = { "n" },
+                mode = { "t" },
             },
 
             -- Previous terminal: cycle to the previous terminal in the list
             {
-                "<leader>th",
+                "<M-h>",
                 function()
                     local terms = require("toggleterm.terminal")
                     local all_terms = terms.get_all(true)
@@ -179,7 +185,7 @@ return {
                     end
                 end,
                 desc = "Previous Terminal",
-                mode = { "n" },
+                mode = { "t" },
             },
         },
         opts = {

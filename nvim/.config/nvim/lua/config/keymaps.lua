@@ -9,12 +9,6 @@ vim.keymap.set({"n", "i"}, "<C-u>", "<C-u>zz", opts)
 vim.keymap.set({"n", "i"}, "<C-f>", "<C-f>zz", opts)
 vim.keymap.set({"n", "i"}, "<C-b>", "<C-b>zz", opts)
 
--- Resize windows with Alt + h/j/k/l
-vim.keymap.set("n", "<A-h>", "<cmd>vertical resize -2<CR>", { noremap = true, silent = true, desc = "Resize window left" })
-vim.keymap.set("n", "<A-l>", "<cmd>vertical resize +2<CR>", { noremap = true, silent = true, desc = "Resize window right" })
-vim.keymap.set("n", "<A-k>", "<cmd>resize +2<CR>", { noremap = true, silent = true, desc = "Resize window up" })
-vim.keymap.set("n", "<A-j>", "<cmd>resize -2<CR>", { noremap = true, silent = true, desc = "Resize window down" })
-
 -- Delete without yanking (don't lose clipboard)
 vim.keymap.set({ "n", "v" }, "d", '"_d', { noremap = true, desc = "Delete without yanking" })
 vim.keymap.set({ "n", "v" }, "D", '"_D', { noremap = true, desc = "Delete to end without yanking" })
@@ -46,4 +40,8 @@ vim.keymap.set("t", "<C-h>", "<C-\\><C-n><C-w>h", { noremap = true, desc = "Navi
 vim.keymap.set("t", "<C-j>", "<C-\\><C-n><C-w>j", { noremap = true, desc = "Navigate down from terminal" })
 vim.keymap.set("t", "<C-k>", "<C-\\><C-n><C-w>k", { noremap = true, desc = "Navigate up from terminal" })
 vim.keymap.set("t", "<C-l>", "<C-\\><C-n><C-w>l", { noremap = true, desc = "Navigate right from terminal" })
+
+-- Override snacks.nvim terminal keybindings to use toggleterm instead. C-_ is reqruied while using tmux
+vim.keymap.set({ "n", "t" }, "<C-/>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
+vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 
