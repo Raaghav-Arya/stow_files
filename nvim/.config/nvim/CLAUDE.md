@@ -23,6 +23,11 @@ This is a Neovim configuration based on LazyVim, a Neovim distribution that prov
 - **Lock File**: `lazy-lock.json` tracks exact plugin versions
 - **LazyVim Extras**: Modular feature sets enabled in `lazyvim.json`
 
+### Accessing Plugin Documentation
+- **IMPORTANT**: Anthropic's servers cannot access GitHub directly. To access plugin documentation, check where Neovim stores plugins locally, as this is where the GitHub directory of the plugin is cloned.
+- **Plugin location**: Plugins are typically stored in `~/.local/share/nvim/lazy/` (check lazy.nvim's data directory)
+- **If plugin not found**: Create a minimal plugin spec file in `lua/plugins/` with just the plugin name (e.g., `return { { "author/plugin-name" } }`). After restarting LazyVim, the plugin will be cloned and accessible locally.
+
 ## Common Development Commands
 
 ### Plugin Management

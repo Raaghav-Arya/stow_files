@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "confluence": {
+      "command": "/home/a0507112/.claude/mcp-servers/confluence-wrapper.sh",
+      "args": []
+    },
+    "jira": {
+      "command": "/home/a0507112/.claude/mcp-servers/jira-wrapper.sh",
+      "args": []
+    },
+    "bitbucket": {
+      "command": "/home/a0507112/.claude/mcp-servers/bitbucket-wrapper.sh",
+      "args": []
+    }
+  }
+}
