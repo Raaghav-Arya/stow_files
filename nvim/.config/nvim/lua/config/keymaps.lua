@@ -4,10 +4,10 @@
 local opts = { noremap = true, silent = true }
 
 -- Center cursor when scrolling
-vim.keymap.set({"n", "i"}, "<C-d>", "<C-d>zz", opts)
-vim.keymap.set({"n", "i"}, "<C-u>", "<C-u>zz", opts)
-vim.keymap.set({"n", "i"}, "<C-f>", "<C-f>zz", opts)
-vim.keymap.set({"n", "i"}, "<C-b>", "<C-b>zz", opts)
+vim.keymap.set({"n", "i"}, "<C-d>", "<C-d>zz0", opts)
+vim.keymap.set({"n", "i"}, "<C-u>", "<C-u>zz0", opts)
+vim.keymap.set({"n", "i"}, "<C-f>", "<C-f>zz0", opts)
+vim.keymap.set({"n", "i"}, "<C-b>", "<C-b>zz0", opts)
 
 -- Delete without yanking (don't lose clipboard)
 vim.keymap.set({ "n", "v" }, "d", '"_d', { noremap = true, desc = "Delete without yanking" })
@@ -41,7 +41,15 @@ vim.keymap.set("t", "<C-j>", "<C-\\><C-n><C-w>j", { noremap = true, desc = "Navi
 vim.keymap.set("t", "<C-k>", "<C-\\><C-n><C-w>k", { noremap = true, desc = "Navigate up from terminal" })
 vim.keymap.set("t", "<C-l>", "<C-\\><C-n><C-w>l", { noremap = true, desc = "Navigate right from terminal" })
 
+-- Tmux navigation (seamless navigation between nvim splits and tmux panes)
+vim.keymap.set("n", "<C-h>", "<cmd>NvimTmuxNavigateLeft<cr>", { noremap = true, silent = true, desc = "Navigate left (tmux-aware)" })
+vim.keymap.set("n", "<C-j>", "<cmd>NvimTmuxNavigateDown<cr>", { noremap = true, silent = true, desc = "Navigate down (tmux-aware)" })
+vim.keymap.set("n", "<C-k>", "<cmd>NvimTmuxNavigateUp<cr>", { noremap = true, silent = true, desc = "Navigate up (tmux-aware)" })
+vim.keymap.set("n", "<C-l>", "<cmd>NvimTmuxNavigateRight<cr>", { noremap = true, silent = true, desc = "Navigate right (tmux-aware)" })
+
 -- Override snacks.nvim terminal keybindings to use toggleterm instead. C-_ is reqruied while using tmux
 vim.keymap.set({ "n", "t" }, "<C-/>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 
+-- Set <leader>gh to nothing
+vim.keymap.set("n", "<leader>gh", "<Nop>", { noremap = true, desc = "Disable <leader>gh" })
