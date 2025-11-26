@@ -12,7 +12,7 @@ return {
                 ["<C-n>"] = { "select_next", "fallback" },
                 ["<C-b>"] = { "scroll_documentation_up", "fallback" },
                 ["<C-f>"] = { "scroll_documentation_down", "fallback" },
-                ["<CR>"] = { "accept", "fallback" },
+                ["<CR>"] = { "fallback" },
 
                 -- Tab cycling configuration for Copilot suggestions
                 ["<Tab>"] = {
