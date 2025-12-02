@@ -6,7 +6,7 @@ export HTTP_PROXY=http://webproxy.ext.ti.com:80
 export http_proxy=http://webproxy.ext.ti.com:80
 export ftp_proxy=http://webproxy.ext.ti.com:80
 export FTP_PROXY=http://webproxy.ext.ti.com:80
-export no_proxy=ti.com
+export no_proxy=.ti.com
 
 # Claude Proxies
 export ANTHROPIC_BASE_URL=https://llmgateway.itg.ti.com
