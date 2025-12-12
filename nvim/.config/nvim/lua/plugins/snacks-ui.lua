@@ -6,9 +6,6 @@ return {
             scroll = {
                 enabled = false, -- Disable smooth scrolling
             },
-            diagnostics = {
-                enabled = false, -- Disable diagnostics
-            },
         },
     },
 }

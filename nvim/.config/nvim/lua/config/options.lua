@@ -11,4 +11,7 @@ vim.g.autoformat = false -- Sets autoformat to false
 
 -- Enable system clipboard integration
 vim.opt.clipboard = "unnamedplus" -- Use system clipboard for all yank/delete/paste operations
+vim.diagnostic.enable(false)
+
+vim.g.root_spec = { "cwd" }
 

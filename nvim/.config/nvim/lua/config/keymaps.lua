@@ -52,4 +52,4 @@ vim.keymap.set({ "n", "t" }, "<C-/>", "<cmd>ToggleTerm<cr>", { noremap = true, d
 vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 
 -- Set <leader>gh to nothing
-vim.keymap.set("n", "<leader>gh", "<Nop>", { noremap = true, desc = "Disable <leader>gh" })
+vim.keymap.del("n", "<leader>gh")
