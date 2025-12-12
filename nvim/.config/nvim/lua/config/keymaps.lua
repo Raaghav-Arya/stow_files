@@ -53,3 +53,7 @@ vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, d
 
 -- Set <leader>gh to nothing
 vim.keymap.del("n", "<leader>gh")
+
+-- Override default LazyVim keybindings to search in cwd instead of root
+vim.keymap.set("n", "<leader><space>", LazyVim.pick("files", { root = false }), { desc = "Find Files (cwd)" })
+vim.keymap.set("n", "<leader>/", LazyVim.pick("live_grep", { root = false }), { desc = "Grep (cwd)" })

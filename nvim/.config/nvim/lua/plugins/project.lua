@@ -5,6 +5,8 @@ return {
     },
     event = "VeryLazy",
     opts = {
+        -- Enable manual mode to prevent automatic directory changing
+        manual_mode = true,
         -- Detection methods for project root
         detection_methods = { "pattern", "lsp" },
         -- Patterns to identify project root

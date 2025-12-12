@@ -9,8 +9,8 @@ return {
     keys = {
         {
             "<leader>gg",
-            "<cmd>Neogit<cr>",
-            desc = "Neogit Status",
+            "<cmd>Neogit cwd=%:p:h<cr>",
+            desc = "Neogit Status (Buffer's Git Repo)",
         },
     },
     opts = {
