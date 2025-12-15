@@ -38,3 +38,12 @@ vim.api.nvim_create_autocmd("SessionLoadPost", {
   end,
   desc = "Restore Claude terminal with matching cwd after session load",
 })
+
+-- Disable wrap for markdown files (override LazyVim default)
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("disable_markdown_wrap", { clear = true }),
+  pattern = "markdown",
+  callback = function()
+    vim.opt_local.wrap = false
+  end,
+})
