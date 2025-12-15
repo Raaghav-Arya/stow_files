@@ -1,3 +1,4 @@
+-- Neogit: Full-featured Git client
 return {
     "NeogitOrg/neogit",
     dependencies = {
@@ -8,14 +9,14 @@ return {
     cmd = "Neogit",
     keys = {
         {
-            "<leader>gg",
+            "<leader>gn",
             "<cmd>Neogit cwd=%:p:h<cr>",
             desc = "Neogit Status (Buffer's Git Repo)",
         },
     },
     opts = {
         -- Layout: "split" (horizontal), "vsplit" (vertical), "floating", or "tab"
-        kind = "split",
+        kind = "floating",
         -- Auto-refresh status when git state changes
         auto_refresh = true,
         -- Git service integrations for opening PRs, commits, and branches in browser

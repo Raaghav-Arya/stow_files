@@ -51,9 +51,6 @@ vim.keymap.set("n", "<C-l>", "<cmd>NvimTmuxNavigateRight<cr>", { noremap = true,
 vim.keymap.set({ "n", "t" }, "<C-/>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 
--- Set <leader>gh to nothing
-vim.keymap.del("n", "<leader>gh")
-
 -- Override default LazyVim keybindings to search in cwd instead of root
 vim.keymap.set("n", "<leader><space>", LazyVim.pick("files", { root = false }), { desc = "Find Files (cwd)" })
 vim.keymap.set("n", "<leader>/", LazyVim.pick("live_grep", { root = false }), { desc = "Grep (cwd)" })
