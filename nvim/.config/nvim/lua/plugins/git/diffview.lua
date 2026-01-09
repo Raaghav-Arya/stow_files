@@ -131,6 +131,15 @@ return {
         },
         hooks = {
             diff_buf_read = function(bufnr)
+                -- Disable LSP for diffview buffers (prevents clangd URI scheme errors)
+                vim.defer_fn(function()
+                    local clients = vim.lsp.get_clients({ bufnr = bufnr })
+                    for _, client in ipairs(clients) do
+                        vim.lsp.buf_detach_client(bufnr, client.id)
+                    end
+                end, 0)
+
+                -- Buffer-local settings
                 vim.opt_local.wrap = false
                 vim.opt_local.list = false
                 vim.opt_local.colorcolumn = { 80 }
