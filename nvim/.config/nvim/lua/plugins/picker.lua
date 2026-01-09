@@ -5,6 +5,10 @@ return {
         opts = {
             picker = {
                 -- Global picker configuration
+                exclude = {
+                    "**/pdk_09_00/**",
+                    "**/targetfs*/**",
+                },
                 sources = {
                     -- Configure files picker to follow symlinks
                     files = {
