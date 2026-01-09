@@ -1,9 +1,7 @@
 -- Override Snacks git picker keybindings to work relative to buffer's git root
 -- Uses LazyVim.root.git() for proper nested git repository detection
 --
--- NOTE: There's a known issue with git_restore (<c-r>) in nested git repos.
--- The git.diff() function in snacks.nvim ignores the provided cwd and calls
--- ctx:git_root() which finds the wrong parent repo. This has been reported upstream.
+
 return {
     "folke/snacks.nvim",
     opts = {},
