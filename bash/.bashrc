@@ -114,6 +114,10 @@ if [ -f ~/.bash_sensitive ]; then
     . ~/.bash_sensitive
 fi
 
+if [ -f ~/.claude/bash_claude_env ]; then
+    . ~/.claude/bash_claude_env
+fi
+
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
@@ -167,3 +171,8 @@ export LC_ALL="en_IN.UTF-8"
 eval "$(zoxide init bash)"
 alias bear="no_proxy=localhost,127.0.0.1 bear"
 
+export PATH="$PATH:$HOME/.local/bin"
+alias cargo="rustup.cargo"
+
+
+. "$HOME/.local/bin/env"

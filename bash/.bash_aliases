@@ -5,6 +5,11 @@ alias glg="git log"
 alias glgo="git log --oneline"
 alias rst2rem="git reset --hard @{u}"
 alias ls='ls -v '
+alias bat="batcat"
 
+# Makes a new dir and cd to it
 mkcd() { mkdir -p "$@" && cd "$@" || exit; }
+# Starts interactive rebase for the last N commits
 grb() { git rebase -i HEAD~"$@"; }
+# Returns the current date in yyyy-mm-dd format
+today() { date +%F; }
