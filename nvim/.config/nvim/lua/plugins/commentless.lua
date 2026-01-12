@@ -1,13 +1,12 @@
 return {
     {
-        dir = vim.fn.stdpath("config") .. "/lua/comment-fold",
-        name = "comment-fold",
+        "Raaghav-Arya/no-comments-please.nvim",
         cmd = { "CommentFold", "CommentUnfold", "CommentFoldToggle" },
         keys = {
             {
                 "zh",
                 function()
-                    require("comment-fold").toggle()
+                    require("no-comments-please").toggle()
                 end,
                 desc = "Toggle comment folding",
             },
@@ -16,9 +15,9 @@ return {
             "nvim-treesitter/nvim-treesitter",
         },
         config = function()
-            require("comment-fold").setup({
+            require("no-comments-please").setup({
                 merge_consecutive = true,     -- Merge adjacent comment lines
-                include_blank_after = true,   -- Include trailing blank lines
+                include_blank_after = false,  -- Include trailing blank lines (default: false)
             })
         end,
     },
