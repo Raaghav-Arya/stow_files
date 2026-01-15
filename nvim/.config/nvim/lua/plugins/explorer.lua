@@ -4,6 +4,8 @@ return {
         picker = {
             sources = {
                 explorer = {
+                    -- Use sidebar preset instead of full layout definition
+                    layout = { preset = "sidebar", preview = false },
                     win = {
                         list = {
                             keys = {

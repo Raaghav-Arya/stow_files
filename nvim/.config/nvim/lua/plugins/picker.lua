@@ -4,7 +4,34 @@ return {
         "folke/snacks.nvim",
         opts = {
             picker = {
-                -- Global picker configuration
+                -- Define custom layout as a preset
+                layouts = {
+                    custom_horizontal = {
+                        layout = {
+                            box = "horizontal",
+                            width = 0.85,
+                            min_width = 120,
+                            height = 0.80,
+                            {
+                                box = "vertical",
+                                border = true,
+                                title = "{title} {live} {flags}",
+                                { win = "input", height = 1, border = "bottom" },
+                                { win = "list", border = "none" },
+                            },
+                            { win = "preview", title = "{preview}", border = true, width = 0.65 },
+                        },
+                    },
+                },
+                -- Reference the preset (no array elements here!)
+                layout = { preset = "custom_horizontal" },
+                win = {
+                    preview = {
+                        wo = {
+                            wrap = true,
+                        },
+                    },
+                },
                 exclude = {
                     "**/pdk_09_00/**",
                     "**/targetfs*/**",
