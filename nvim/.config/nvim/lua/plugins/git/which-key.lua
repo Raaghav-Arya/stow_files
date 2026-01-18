@@ -3,7 +3,8 @@ return {
     "folke/which-key.nvim",
     opts = {
         spec = {
-            { "<leader>h", group = "hunks" },
+            { "<leader>h", group = "hunks", icon = "󰊢" },
+            { "<leader>o", group = "obsidian", icon = "󰠮" },
         },
     },
 }
