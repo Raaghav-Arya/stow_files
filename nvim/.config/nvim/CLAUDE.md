@@ -74,21 +74,76 @@ This is a Neovim configuration based on LazyVim, a Neovim distribution that prov
 ### Non-Standard Keybindings
 - **Delete without yanking**: `d`, `D`, `c`, `C`, `x`, `X` use blackhole register
 - **Cut operations**: `yd`, `yD`, `yc`, `yC`, `yx`, `yX` for yank+delete
-- **Window resizing**: `<Alt-h/j/k/l>` to resize splits
-- **Buffer navigation**: `L`/`H` for next/previous buffer
-- **Terminal toggle**: `<C-/>` to toggle terminal
+- **Centered scrolling**: `<C-d>`, `<C-u>`, `<C-f>`, `<C-b>` center cursor after movement
+- **Smart word motions**: `w`, `e`, `b` are CamelCase/snake_case aware (nvim-spider)
+- **Buffer operations**: `L`/`H` for next/previous buffer, `<leader>by` yank buffer path to clipboard
+- **Terminal toggle**: `<C-/>`, `<M-/>` to toggle terminal
+- **Navigation**: `<C-h/j/k/l>` for tmux-aware window navigation
 
 ### Custom Plugin Configurations
-- **Neogit + Diffview**: Git workflow at `<leader>g` prefix
-- **Toggleterm**: Terminal management at `<leader>t` prefix
-- **Undotree**: Undo history visualization at `<leader>uu`
-- **Sidekick**: Claude Code integration at `<leader>ac`
+
+#### File Navigation & Search
+- **Snacks Picker**: Custom horizontal layout (85% width, 80% height), follows symlinks, custom excluded patterns
+- **Snacks Explorer**: Sidebar layout on left, `<Esc>` disabled to prevent accidental close
+- **Project.nvim**: Project management at `<leader>fp`
 - **Rip-substitute**: Find/replace with ripgrep at `g/`
+
+#### Git Integration
+- **Neogit**: Git client at `<leader>gn` with floating layout
+- **Diffview**: Enhanced diff viewer at `<leader>ga` (open), `<leader>gc` (close)
+- **Gitsigns**: Hunk operations at `<leader>h*` prefix (stage, reset, blame, diff)
+- **Lazygit**: Integration via `<leader>gg`
+
+#### AI & Completion
+- **Sidekick**: Claude Code integration at `<leader>a*` prefix (tmux backend)
+- **Blink-cmp**: Completion engine with Copilot integration, prioritized sources
+- **Copilot**: AI code suggestions (via LazyVim extras)
+
+#### Note-taking
+- **Obsidian**: Full note-taking integration at `<leader>o*` prefix
+  - Workspaces: `~/vaults/personal`, `~/vaults/work`
+  - Daily notes, backlinks, tags, templates, calendar
+  - Smart actions on `<CR>`, link navigation with `]o`/`[o`
+
+#### Terminal & Navigation
+- **Toggleterm**: Terminal management at `<M-/>` (toggle), `<M-t>` (new), `<M-s>` (picker), `<M-q>` (close)
+- **nvim-tmux-navigation**: Seamless navigation between nvim and tmux with `<C-h/j/k/l>`
+
+#### Editing Enhancements
+- **nvim-spider**: Smart word motions (`w`, `e`, `b`) for CamelCase/snake_case
+- **Comment folding**: Toggle comment visibility at `zh`
+- **Undotree**: Undo history visualization at `<leader>uu`
+
+#### Utilities
+- **CodeSnap**: Code screenshots at `<leader>cs` (visual mode)
+- **vim-eunuch**: Unix commands (`:Remove`, `:Delete`, `:Move`, `:Rename`, `:Chmod`, `:Mkdir`, `:SudoWrite`)
 
 ### Modified Defaults
 - Tab size: 4 spaces (not 2)
 - Autoformat: Disabled by default (`vim.g.autoformat = false`)
+- Diagnostics: Disabled by default (`vim.diagnostic.enable = false`)
+- Swap files: Disabled (`vim.opt.swapfile = false`)
 - Colorscheme: Catppuccin Mocha (not TokyoNight)
+- Root detection: lsp → .git → lua → cwd
+
+### Key Prefix Reference
+
+Quick reference for common key prefixes:
+
+| Prefix | Group | Description |
+|--------|-------|-------------|
+| `<leader>a` | AI | Sidekick/Claude Code integration |
+| `<leader>b` | Buffer | Buffer operations |
+| `<leader>c` | Code | Code operations (CodeSnap, LSP) |
+| `<leader>f` | Find | File/project finding, fuzzy search |
+| `<leader>g` | Git | Git operations (Neogit, Diffview, pickers) |
+| `<leader>h` | Hunks | Gitsigns hunk operations |
+| `<leader>o` | Obsidian | Note-taking and knowledge management |
+| `<leader>s` | Search | Search in files, symbols, diagnostics |
+| `<leader>u` | UI | UI toggles (Undotree, colorschemes) |
+| `<M-...>` | Terminal | Terminal management (Alt key) |
+| `g/` | - | Rip-substitute find/replace |
+| `zh` | - | Comment folding toggle |
 
 ## Configuration Patterns
 
@@ -142,18 +197,21 @@ return {
 ## Dependencies
 
 External tools required for full functionality:
-- Git (plugin management, Neogit/Diffview)
-- Ripgrep (rip-substitute plugin)
-- Language servers (installed via Mason as needed)
-- Node.js (for certain LSP servers and Copilot)
+- **Git**: Plugin management, Neogit, Diffview
+- **Ripgrep**: Snacks picker, rip-substitute plugin
+- **tmux**: Sidekick backend, nvim-tmux-navigation
+- **Obsidian app** (optional): For `<leader>oO` to open notes in Obsidian
+- **Language servers**: Installed via Mason as needed
+- **Node.js**: For certain LSP servers and Copilot
 
 ## LazyVim Extras Enabled
 
 The following LazyVim extras are active (configured in `lazyvim.json`):
 - AI: Copilot, Copilot Chat
 - Coding: Mini-surround, Yanky
-- Editor: Dial
-- Lang: Clangd, Markdown
+- Editor: Dial, Inc-rename
+- Formatting: Prettier
+- Lang: Clangd, JSON, Markdown, YAML
 - UI: Treesitter Context
 - Util: Dot files support
 - VSCode: VSCode keybindings compatibility
