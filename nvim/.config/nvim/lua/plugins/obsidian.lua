@@ -10,6 +10,9 @@ return {
     ---@type obsidian.config
     opts = {
         legacy_commands = false, -- this will be removed in the next major release
+         footer = {
+            enabled = false,
+        },
         workspaces = {
             {
                 name = "personal",

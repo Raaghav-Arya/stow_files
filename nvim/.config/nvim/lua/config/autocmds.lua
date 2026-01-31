@@ -40,10 +40,10 @@ vim.api.nvim_create_autocmd("SessionLoadPost", {
 })
 
 -- Disable wrap for markdown files (override LazyVim default)
-vim.api.nvim_create_autocmd("FileType", {
-  group = vim.api.nvim_create_augroup("disable_markdown_wrap", { clear = true }),
-  pattern = "markdown",
-  callback = function()
-    vim.opt_local.wrap = false
-  end,
-})
+-- vim.api.nvim_create_autocmd("FileType", {
+--   group = vim.api.nvim_create_augroup("disable_markdown_wrap", { clear = true }),
+--   pattern = "markdown",
+--   callback = function()
+--     vim.opt_local.wrap = false
+--   end,
+-- })

@@ -17,4 +17,5 @@ return {
     { import = "plugins.git.lazygit" },
     { import = "plugins.git.snacks" },
     { import = "plugins.git.which-key" },
+    { import = "plugins.git.codediff"},
 }
