@@ -2,7 +2,6 @@
 alias ccc="clear"
 alias gst="git status"
 alias glg="git log"
-alias glgo="git log --oneline"
 alias rst2rem="git reset --hard @{u}"
 alias ls='ls -v '
 alias bat="batcat"
@@ -14,3 +13,5 @@ mkcd() { mkdir -p "$@" && cd "$@" || exit; }
 grb() { git rebase -i HEAD~"$@"; }
 # Returns the current date in yyyy-mm-dd format
 today() { date +%F; }
+# oneline gitlog
+glgo() { git log --oneline -"$@"; }
