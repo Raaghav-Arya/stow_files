@@ -105,17 +105,8 @@ if [ -f ~/.bash_aliases ]; then
     . ~/.bash_aliases
 fi
 
-if [ -f ~/.bash_ti_proxies ]; then
-    . ~/.bash_ti_proxies
-fi
-
-
 if [ -f ~/.bash_sensitive ]; then
     . ~/.bash_sensitive
-fi
-
-if [ -f ~/.claude/bash_claude_env ]; then
-    . ~/.claude/bash_claude_env
 fi
 
 # enable programmable completion features (you don't need to enable
@@ -129,12 +120,6 @@ if ! shopt -oq posix; then
   fi
 fi
 
-
-# pyenv settings
-command -v pyenv >/dev/null || export PATH=":${HOME}/.pyenv/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
-
 export EDITOR="nvim"
 export VISUAL="nvim"
 
@@ -143,8 +128,6 @@ if [ -f /etc/bash_completion ]; then
 fi
 
 shopt -s cdable_vars
-export sdwa="/home/a0507112/sdk_workareas/"
-
 shopt -s globstar
 
 ## To run .env files to declare paths and SOC and TISDK_IMAGE  as variables in work area for better navigation
