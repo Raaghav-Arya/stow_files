@@ -1,0 +1,399 @@
+[ca/desrt/dconf-editor]
+saved-pathbar-path='/org/gnome/shell/extensions/pop-shell/tile-move-up-global'
+saved-view='/org/gnome/shell/extensions/pop-shell/'
+show-warning=false
+window-height=465
+window-is-maximized=false
+window-width=948
+
+[org/gnome/Extensions]
+window-height=1032
+window-maximized=false
+window-width=948
+
+[org/gnome/control-center]
+last-panel='keyboard'
+window-state=(1904, 1032, false)
+
+[org/gnome/desktop/app-folders]
+folder-children=['Utilities', 'YaST', 'Pardus']
+
+[org/gnome/desktop/app-folders/folders/Pardus]
+categories=['X-Pardus-Apps']
+name='X-Pardus-Apps.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/Utilities]
+apps=['gnome-abrt.desktop', 'gnome-system-log.desktop', 'nm-connection-editor.desktop', 'org.gnome.baobab.desktop', 'org.gnome.Connections.desktop', 'org.gnome.DejaDup.desktop', 'org.gnome.Dictionary.desktop', 'org.gnome.DiskUtility.desktop', 'org.gnome.Evince.desktop', 'org.gnome.FileRoller.desktop', 'org.gnome.fonts.desktop', 'org.gnome.Loupe.desktop', 'org.gnome.seahorse.Application.desktop', 'org.gnome.tweaks.desktop', 'org.gnome.Usage.desktop', 'vinagre.desktop']
+categories=['X-GNOME-Utilities']
+name='X-GNOME-Utilities.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/YaST]
+categories=['X-SuSE-YaST']
+name='suse-yast.directory'
+translate=true
+
+[org/gnome/desktop/background]
+color-shading-type='solid'
+picture-options='zoom'
+picture-uri='file:///home/raaghav/.local/share/backgrounds/2026-02-07-20-48-54-frieren.png'
+picture-uri-dark='file:///home/raaghav/.local/share/backgrounds/2026-02-07-20-48-54-frieren.png'
+primary-color='#000000000000'
+secondary-color='#000000000000'
+
+[org/gnome/desktop/input-sources]
+per-window=true
+sources=[('xkb', 'us')]
+xkb-options=['caps:swapescape']
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+enable-hot-corners=false
+show-battery-percentage=false
+
+[org/gnome/desktop/media-handling]
+autorun-never=true
+
+[org/gnome/desktop/notifications]
+application-children=['org-gnome-shell-extensions', 'ca-desrt-dconf-editor', 'libreoffice-writer']
+
+[org/gnome/desktop/notifications/application/ca-desrt-dconf-editor]
+application-id='ca.desrt.dconf-editor.desktop'
+
+[org/gnome/desktop/notifications/application/io-snapcraft-sessionagent]
+enable=true
+enable-sound-alerts=false
+show-banners=false
+show-in-lock-screen=false
+
+[org/gnome/desktop/notifications/application/libreoffice-writer]
+application-id='libreoffice-writer.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-shell-extensions]
+application-id='org.gnome.Shell.Extensions.desktop'
+
+[org/gnome/desktop/peripherals/touchpad]
+two-finger-scrolling-enabled=true
+
+[org/gnome/desktop/privacy]
+old-files-age=uint32 30
+recent-files-max-age=-1
+
+[org/gnome/desktop/screensaver]
+color-shading-type='solid'
+picture-options='zoom'
+picture-uri='file:///home/raaghav/.local/share/backgrounds/2026-02-07-20-48-54-frieren.png'
+primary-color='#000000000000'
+secondary-color='#000000000000'
+
+[org/gnome/desktop/search-providers]
+sort-order=['org.gnome.Contacts.desktop', 'org.gnome.Documents.desktop', 'org.gnome.Nautilus.desktop']
+
+[org/gnome/desktop/session]
+idle-delay=uint32 600
+
+[org/gnome/desktop/sound]
+event-sounds=true
+
+[org/gnome/desktop/wm/keybindings]
+close=['<Super>q']
+maximize=@as []
+minimize=['<Super>comma']
+move-to-monitor-down=@as []
+move-to-monitor-left=@as []
+move-to-monitor-right=@as []
+move-to-monitor-up=@as []
+move-to-workspace-down=@as []
+move-to-workspace-left=['<Shift><Control><Super>h']
+move-to-workspace-right=['<Shift><Control><Super>l']
+move-to-workspace-up=@as []
+switch-to-workspace-down=['<Primary><Super>Down', '<Primary><Super>j']
+switch-to-workspace-left=['<Control><Super>h']
+switch-to-workspace-right=['<Control><Super>l']
+switch-to-workspace-up=['<Primary><Super>Up', '<Primary><Super>k']
+toggle-fullscreen=@as []
+toggle-maximized=['<Super>m']
+unmaximize=@as []
+
+[org/gnome/eog/ui]
+sidebar=false
+
+[org/gnome/evolution-data-server]
+migrated=true
+
+[org/gnome/mutter]
+dynamic-workspaces=false
+edge-tiling=false
+workspaces-only-on-primary=false
+
+[org/gnome/mutter/keybindings]
+toggle-tiled-left=@as []
+toggle-tiled-right=@as []
+
+[org/gnome/mutter/wayland/keybindings]
+restore-shortcuts=@as []
+
+[org/gnome/nautilus/preferences]
+default-folder-viewer='list-view'
+migrated-gtk-settings=true
+search-filter-time-type='last_modified'
+
+[org/gnome/nautilus/window-state]
+initial-size=(948, 512)
+maximized=false
+
+[org/gnome/portal/filechooser/gnome-background-panel]
+last-folder-path='/home/raaghav/Pictures/wallpapers'
+
+[org/gnome/portal/filechooser/org.chromium.Chromium]
+last-folder-path='/home/raaghav/Pictures'
+
+[org/gnome/portal/filechooser/org.gnome.Settings]
+last-folder-path='/home/raaghav/Pictures'
+
+[org/gnome/settings-daemon/plugins/media-keys]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/win11-clipboard-history/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/win11-clipboard-history-emoji/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/win11-clipboard-history-alt/']
+email=['<Super>e']
+home=['<Super>f']
+rotate-video-lock-static=@as []
+screensaver=['<Super>Escape']
+terminal=['<Super>t']
+www=['<Super>b']
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/win11-clipboard-history-alt]
+binding='<Ctrl><Alt>v'
+command='win11-clipboard-history'
+name='Clipboard History (Alt)'
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/win11-clipboard-history-emoji]
+binding='<Super>period'
+command='win11-clipboard-history --emoji'
+name='Emoji Picker'
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/win11-clipboard-history]
+binding='<Super>v'
+command='win11-clipboard-history'
+name='Clipboard History'
+
+[org/gnome/settings-daemon/plugins/power]
+sleep-inactive-ac-timeout=5400
+sleep-inactive-ac-type='suspend'
+sleep-inactive-battery-type='suspend'
+
+[org/gnome/shell]
+app-picker-layout=[{'org.gnome.Contacts.desktop': <{'position': <0>}>, 'org.gnome.Totem.desktop': <{'position': <1>}>, 'org.gnome.Calculator.desktop': <{'position': <2>}>, 'simple-scan.desktop': <{'position': <3>}>, 'org.gnome.Settings.desktop': <{'position': <4>}>, 'org.gnome.SystemMonitor.desktop': <{'position': <5>}>, 'org.gnome.Terminal.desktop': <{'position': <6>}>, 'Utilities': <{'position': <7>}>, 'software-properties-drivers.desktop': <{'position': <8>}>, 'brave-browser.desktop': <{'position': <9>}>, 'gucharmap.desktop': <{'position': <10>}>, 'win11-clipboard-history.desktop': <{'position': <11>}>, 'com.system76.CosmicFiles.desktop': <{'position': <12>}>, 'com.system76.CosmicPlayer.desktop': <{'position': <13>}>, 'com.system76.CosmicScreenshot.desktop': <{'position': <14>}>, 'com.system76.CosmicStore.desktop': <{'position': <15>}>, 'com.system76.CosmicTerm.desktop': <{'position': <16>}>, 'com.system76.CosmicEdit.desktop': <{'position': <17>}>, 'com.mattjakeman.ExtensionManager.desktop': <{'position': <18>}>, 'org.gnome.Extensions.desktop': <{'position': <19>}>, 'firefox.desktop': <{'position': <20>}>, 'org.gnome.eog.desktop': <{'position': <21>}>, 'gnome-language-selector.desktop': <{'position': <22>}>, 'libreoffice-startcenter.desktop': <{'position': <23>}>, 'libreoffice-calc.desktop': <{'position': <24>}>, 'libreoffice-draw.desktop': <{'position': <25>}>, 'libreoffice-impress.desktop': <{'position': <26>}>, 'libreoffice-math.desktop': <{'position': <27>}>, 'nvim_nvim.desktop': <{'position': <28>}>, 'nvidia-settings.desktop': <{'position': <29>}>, 'com.system76.Popsicle.desktop': <{'position': <30>}>, 'org.gnome.PowerStats.desktop': <{'position': <31>}>}, {'system-config-printer.desktop': <{'position': <0>}>, 'repoman.desktop': <{'position': <1>}>, 'org.signal.Signal.desktop': <{'position': <2>}>, 'software-properties-gtk.desktop': <{'position': <3>}>, 'gnome-session-properties.desktop': <{'position': <4>}>, 'info.desktop': <{'position': <5>}>, 'org.gnome.TextEditor.desktop': <{'position': <6>}>, 'thunderbird.desktop': <{'position': <7>}>, 'com.visualstudio.code.desktop': <{'position': <8>}>, 'org.videolan.VLC.desktop': <{'position': <9>}>}]
+disable-user-extensions=false
+disabled-extensions=['vertical-workspaces@G-dH.github.com']
+enabled-extensions=['pop-shell@system76.com', 'drive-menu@gnome-shell-extensions.gcampax.github.com', 'native-window-placement@gnome-shell-extensions.gcampax.github.com', 'dash-to-dock@micxgx.gmail.com']
+favorite-apps=['libreoffice-writer.desktop', 'org.gnome.Nautilus.desktop', 'brave-browser.desktop', 'org.gnome.Software.desktop', 'yelp.desktop']
+welcome-dialog-last-shown-version='46.0'
+
+[org/gnome/shell/app-switcher]
+current-workspace-only=true
+
+[org/gnome/shell/extensions/dash-to-dock]
+background-opacity=0.80000000000000004
+dash-max-icon-size=48
+dock-position='BOTTOM'
+height-fraction=0.90000000000000002
+hot-keys=false
+preferred-monitor=-2
+preferred-monitor-by-connector='HDMI-0'
+shortcut=@as []
+shortcut-text=''
+
+[org/gnome/shell/extensions/pop-shell]
+active-hint=true
+active-hint-border-radius=uint32 1
+hint-color-rgba='rgb(108,208,251)'
+pop-monitor-down=['<Super><Alt>j']
+pop-monitor-left=['<Super><Alt>h']
+pop-monitor-right=['<Super><Alt>l']
+pop-monitor-up=['<Super><Alt>k']
+stacking-with-mouse=true
+tile-by-default=true
+tile-move-down-global=['<Super><Shift>j']
+tile-move-left-global=['<Super><Shift>h']
+tile-move-right-global=['<Super><Shift>l']
+tile-move-up-global=['<Super><Shift>k']
+
+[org/gnome/shell/extensions/vertical-workspaces]
+aaa-loading-profile=true
+always-activate-selected-window=false
+animation-speed-factor=100
+app-display-module=true
+app-favorites-module=true
+app-folder-close-button=true
+app-folder-order=0
+app-folder-remove-button=1
+app-grid-active-preview=false
+app-grid-animation=4
+app-grid-bg-blur-sigma=100
+app-grid-bg-brightness=50
+app-grid-columns=0
+app-grid-content=2
+app-grid-folder-center=false
+app-grid-folder-columns=0
+app-grid-folder-icon-grid=3
+app-grid-folder-icon-size=-1
+app-grid-folder-rows=0
+app-grid-folder-spacing=12
+app-grid-icon-size=-1
+app-grid-incomplete-pages=false
+app-grid-names=1
+app-grid-order=0
+app-grid-orientation=0
+app-grid-page-height-scale=90
+app-grid-page-width-scale=90
+app-grid-performance=false
+app-grid-remember-page=false
+app-grid-rows=0
+app-grid-show-package-type=1
+app-grid-show-page-arrows=true
+app-grid-show-page-indicators=true
+app-grid-spacing=12
+app-menu-close-wins-ws=true
+app-menu-force-quit=true
+app-menu-move-app=true
+app-menu-window-tmb=true
+center-app-grid=false
+center-dash-to-ws=false
+center-search=true
+click-empty-close=false
+close-ws-button-mode=2
+dash-bg-color=1
+dash-bg-gs3-style=false
+dash-bg-opacity=20
+dash-bg-radius=18
+dash-icon-scroll=2
+dash-isolate-workspaces=false
+dash-max-icon-size=0
+dash-module=true
+dash-position=0
+dash-position-adjust=-100
+dash-show-windows-before-activation=0
+delay-startup=false
+enable-page-shortcuts=true
+favorites-notify=1
+highlighting-style=1
+hot-corner-action=0
+hot-corner-fullscreen=true
+hot-corner-position=0
+hot-corner-ripples=true
+layout-module=true
+message-tray-module=true
+new-window-focus-fix=false
+new-window-monitor-fix=false
+notification-position=2
+osd-position=6
+osd-window-module=true
+overlay-key-module=true
+overlay-key-primary=1
+overlay-key-secondary=1
+overview-bg-blur-sigma=100
+overview-bg-brightness=50
+overview-esc-behavior=0
+overview-mode=0
+overview-select-window=0
+overview-sort-windows=0
+panel-module=true
+panel-overview-style=1
+panel-position=0
+panel-visibility=0
+profile-data-0={'workspaceThumbnailsPosition': '0', 'wsMaxSpacing': '350', 'wsPreviewScale': '95', 'secWsPreviewScale': '95', 'secWsPreviewShift': 'false', 'wsThumbnailsFull': 'false', 'secWsThumbnailsPosition': '2', 'dashPosition': '0', 'dashPositionAdjust': '-100', 'wsTmbPositionAdjust': '-100', 'showWsTmbLabels': '3', 'showWsTmbLabelsOnHover': 'false', 'closeWsButtonMode': '2', 'secWsTmbPositionAdjust': '0', 'dashMaxIconSize': '0', 'centerDashToWs': 'false', 'showAppsIconPosition': '0', 'wsThumbnailScale': '13', 'wsThumbnailScaleAppGrid': '13', 'secWsThumbnailScale': '13', 'showSearchEntry': 'false', 'centerSearch': 'true', 'centerAppGrid': 'false', 'dashBgOpacity': '20', 'dashBgColor': '1', 'dashBgRadius': '18', 'dashBgGS3Style': 'false', 'runningDotStyle': '1', 'enablePageShortcuts': 'true', 'showWsSwitcherBg': 'false', 'showWsPreviewBg': 'true', 'wsPreviewBgRadius': '30', 'showOverviewBackground': '1', 'overviewBgBrightness': '50', 'appGridBgBrightness': '50', 'searchBgBrightness': '50', 'overviewBgBlurSigma': '100', 'appGridBgBlurSigma': '100', 'appGridAnimation': '4', 'searchViewAnimation': '0', 'searchResultsBgStyle': '0', 'workspaceAnimation': '1', 'animationSpeedFactor': '100', 'winPreviewIconSize': '1', 'winTitlePosition': '0', 'startupState': '0', 'overviewMode': '0', 'workspaceSwitcherAnimation': '1', 'wsSwitcherMode': '0', 'searchIconSize': '0', 'searchViewScale': '100', 'appGridOrientation': '0', 'appGridIconSize': '-1', 'appGridColumns': '0', 'appGridRows': '0', 'appGridFolderIconSize': '-1', 'appGridFolderColumns': '0', 'appGridFolderRows': '0', 'appGridFolderIconGrid': '3', 'appGridContent': '2', 'appGridIncompletePages': 'false', 'appGridOrder': '0', 'appFolderOrder': '0', 'appGridNamesMode': '1', 'appGridActivePreview': 'false', 'appGridFolderCenter': 'false', 'appGridPageWidthScale': '90', 'appGridPageHeightScale': '90', 'appGridSpacing': '12', 'appGridFolderSpacing': '12', 'appGridRememberPage': 'false', 'appFolderRemoveButton': '1', 'appFolderCloseButton': 'true', 'appGridShowPageArrows': 'true', 'appGridShowPageIndicators': 'true', 'appGridShowPackageType': '1', 'searchFuzzy': 'false', 'searchMaxResultsRows': '5', 'searchAppGridMode': '1', 'searchIncludeSettings': 'true', 'dashShowWindowsBeforeActivation': '0', 'dashIconScroll': '2', 'dashIsolateWorkspaces': 'false', 'appMenuForceQuit': 'true', 'appMenuCloseWinsWs': 'true', 'appMenuMoveApp': 'true', 'appMenuWindowTmb': 'true', 'searchWindowsIconScroll': '1', 'panelVisibility': '0', 'panelPosition': '0', 'panelOverviewStyle': '1', 'windowAttentionMode': '0', 'wsSwPopupHPosition': '50', 'wsSwPopupVPosition': '95', 'wsSwPopupMode': '1', 'wsSwitcherWraparound': 'false', 'wsSwitcherIgnoreLast': 'false', 'favoritesNotify': '1', 'notificationPosition': '2', 'osdPosition': '6', 'hotCornerAction': '0', 'hotCornerPosition': '0', 'hotCornerFullscreen': 'true', 'hotCornerRipples': 'true', 'alwaysActivateSelectedWindow': 'false', 'winPreviewSecBtnAction': '3', 'winPreviewMidBtnAction': '0', 'winPreviewShowCloseButton': 'true', 'windowIconClickAction': '1', 'winPreviewHeightCompensation': '50', 'overlayKeyPrimary': '1', 'overlayKeySecondary': '1', 'overviewEscBehavior': '0', 'overviewSortWindows': '0', 'overviewSelectWindow': '0', 'clickEmptyClose': 'false', 'newWindowFocusFix': 'false', 'newWindowMonitorFix': 'false', 'appGridPerformance': 'false', 'highlightingStyle': '1', 'delayStartup': 'false', 'workspaceSwitcherPopupModule': 'true', 'workspaceAnimationModule': 'true', 'workspaceModule': 'true', 'windowManagerModule': 'true', 'windowPreviewModule': 'true', 'windowAttentionHandlerModule': 'true', 'swipeTrackerModule': 'true', 'searchControllerModule': 'true', 'searchModule': 'true', 'panelModule': 'true', 'overlayKeyModule': 'true', 'osdWindowModule': 'true', 'messageTrayModule': 'true', 'layoutModule': 'true', 'dashModule': 'true', 'appFavoritesModule': 'true', 'appDisplayModule': 'true'}
+running-dot-style=1
+search-app-grid-mode=1
+search-bg-brightness=50
+search-controller-module=true
+search-fuzzy=false
+search-icon-size=0
+search-include-settings=true
+search-max-results-rows=5
+search-module=true
+search-results-bg-style=0
+search-view-animation=0
+search-width-scale=100
+search-windows-icon-scroll=1
+sec-wst-position-adjust=0
+secondary-ws-preview-scale=95
+secondary-ws-preview-shift=false
+secondary-ws-thumbnail-scale=13
+secondary-ws-thumbnails-position=2
+show-app-icon-position=0
+show-overview-background=1
+show-search-entry=false
+show-ws-preview-bg=true
+show-ws-switcher-bg=false
+show-wst-labels=3
+show-wst-labels-on-hover=false
+startup-state=0
+swipe-tracker-module=true
+win-attention-handler-module=true
+win-preview-height-compensation=50
+win-preview-icon-size=1
+win-preview-mid-mouse-btn-action=0
+win-preview-sec-mouse-btn-action=3
+win-preview-show-close-button=true
+win-title-position=0
+window-attention-mode=0
+window-icon-click-action=1
+window-manager-module=true
+window-preview-module=true
+workspace-animation=1
+workspace-animation-module=true
+workspace-module=true
+workspace-switcher-animation=1
+workspace-switcher-popup-module=true
+ws-max-spacing=350
+ws-preview-bg-radius=30
+ws-preview-scale=95
+ws-sw-popup-h-position=50
+ws-sw-popup-mode=1
+ws-sw-popup-v-position=95
+ws-switcher-ignore-last=false
+ws-switcher-mode=0
+ws-switcher-wraparound=false
+ws-thumbnail-scale=13
+ws-thumbnail-scale-appgrid=13
+ws-thumbnails-full=false
+ws-thumbnails-position=0
+wst-position-adjust=-100
+
+[org/gnome/shell/keybindings]
+open-application-menu=@as []
+toggle-message-tray=@as []
+toggle-overview=@as []
+
+[org/gnome/software]
+first-run=false
+
+[org/gtk/gtk4/settings/file-chooser]
+date-format='regular'
+location-mode='path-bar'
+show-hidden=false
+sidebar-width=140
+sort-column='name'
+sort-directories-first=false
+sort-order='ascending'
+type-format='category'
+view-type='list'
+window-size=(859, 372)
+
+[org/gtk/settings/color-chooser]
+custom-colors=[(0.42352941176470582, 0.81380498145204028, 0.98431372549019602, 1.0), (0.98431372549019602, 0.72156862745098038, 0.42352941176470588, 1.0)]
+selected-color=(true, 0.42352941176470582, 0.81380498145204028, 0.98431372549019602, 1.0)
+
+[org/gtk/settings/file-chooser]
+date-format='regular'
+location-mode='path-bar'
+show-hidden=false
+show-size-column=true
+show-type-column=true
+sidebar-width=157
+sort-column='name'
+sort-directories-first=false
+sort-order='ascending'
+type-format='category'
+window-position=(2279, 54)
+window-size=(1203, 925)
