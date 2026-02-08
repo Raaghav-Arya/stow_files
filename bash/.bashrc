@@ -109,6 +109,14 @@ if [ -f ~/.bash_sensitive ]; then
     . ~/.bash_sensitive
 fi
 
+if [ -f ~/.bash_options ]; then
+    . ~/.bash_options
+fi
+
+if [ -f ~/.bash_programs ]; then
+    . ~/.bash_programs
+fi
+
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
@@ -119,43 +127,3 @@ if ! shopt -oq posix; then
     . /etc/bash_completion
   fi
 fi
-
-export EDITOR="nvim"
-export VISUAL="nvim"
-
-if [ -f /etc/bash_completion ]; then
-    . /etc/bash_completion
-fi
-
-shopt -s cdable_vars
-shopt -s globstar
-
-## To run .env files to declare paths and SOC and TISDK_IMAGE  as variables in work area for better navigation
-autoenv() {
-# Check if the current directory is different from the last one and if .env exists
-    if [ "$PWD" != "$LAST_PWD" ] && [ -f .env ]; then
-        source .env
-        export LAST_PWD="$PWD"
-    fi
-}
-# Add autoenv to the PROMPT_COMMAND to run it before each prompt
-PROMPT_COMMAND="autoenv;
-$PROMPT_COMMAND"
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-export PATH="/home/a0507112/.cargo/bin:${PATH}"
-
-export LANG="en_IN.UTF-8"
-export LC_ALL="en_IN.UTF-8"
-
-eval "$(zoxide init bash)"
-alias bear="no_proxy=localhost,127.0.0.1 bear"
-
-export PATH="$PATH:$HOME/.local/bin"
-alias cargo="rustup.cargo"
-
-
-. "$HOME/.local/bin/env"

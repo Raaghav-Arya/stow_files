@@ -6,6 +6,11 @@ alias rst2rem="git reset --hard @{u}"
 alias ls='ls -v '
 alias bat="batcat"
 alias cat="bat"
+alias vim=nvim
+
+# Exports
+export EDITOR=nvim
+export VISUAL=nvim
 
 # Makes a new dir and cd to it
 mkcd() { mkdir -p "$@" && cd "$@" || exit; }

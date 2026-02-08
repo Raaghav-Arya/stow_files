@@ -1,0 +1,17 @@
+#!/bin/bash
+# File for shell options and functions
+
+shopt -s cdable_vars
+shopt -s globstar
+
+## To run .env files to declare paths and SOC and TISDK_IMAGE  as variables in work area for better navigation
+autoenv() {
+# Check if the current directory is different from the last one and if .env exists
+    if [ "$PWD" != "$LAST_PWD" ] && [ -f .env ]; then
+        source .env
+        export LAST_PWD="$PWD"
+    fi
+}
+# Add autoenv to the PROMPT_COMMAND to run it before each prompt
+PROMPT_COMMAND="autoenv;
+$PROMPT_COMMAND"
