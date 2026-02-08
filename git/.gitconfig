@@ -1,16 +1,9 @@
 [user]
-    email = r-arya@ti.com
-    name = a0507112
+	name = Raaghav Arya
+	email = raaghav448@gmail.com
 [core]       
-    gitproxy = none for ti.com
-    gitproxy = /home/a0507112/git-proxy.sh
     editor = ~/.git-editor.sh
-    autocrlf = false
     pager = delta
-[http]
-    proxy = http://webproxy.ext.ti.com:80
-[https]
-    proxy = http://webproxy.ext.ti.com:80
 [init]
 	defaultBranch = main
 [color]
