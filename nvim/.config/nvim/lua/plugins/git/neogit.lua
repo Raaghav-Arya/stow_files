@@ -16,7 +16,7 @@ return {
     },
     opts = {
         -- Layout: "split" (horizontal), "vsplit" (vertical), "floating", or "tab"
-        kind = "floating",
+        kind = "tab",
         -- Auto-refresh status when git state changes
         auto_refresh = true,
         -- Git service integrations for opening PRs, commits, and branches in browser
