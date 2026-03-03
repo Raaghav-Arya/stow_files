@@ -15,3 +15,8 @@ grb() { git rebase -i HEAD~"$@"; }
 today() { date +%F; }
 # oneline gitlog
 glgo() { git log --oneline -"$@"; }
+# symbolic link creation
+lncp() { ln -s $(realpath "$1") $(realpath "$2"); }
+# Query claude in the terminal
+ask() { claude -p --model haiku "$*"; }
+
