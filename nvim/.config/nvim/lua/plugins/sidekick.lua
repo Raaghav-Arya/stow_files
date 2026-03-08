@@ -6,9 +6,17 @@ return {
       {
         "<leader>as",
         function()
-          require("sidekick.cli").toggle({ name = "claude", focus = true })
+          require("sidekick.cli").toggle({ name = "opencode", focus = true })
         end,
-        desc = "Toggle Claude (Sidekick)",
+        desc = "Toggle opencode (Sidekick)",
+        mode = { "n", "x" },
+      },
+      {
+        "<leader>ag",
+        function()
+          require("sidekick.cli").toggle({ name = "gemini", focus = true })
+        end,
+        desc = "Toggle gemini (Sidekick)",
         mode = { "n", "x" },
       },
       {

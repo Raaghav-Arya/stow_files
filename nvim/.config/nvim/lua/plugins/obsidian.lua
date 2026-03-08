@@ -18,10 +18,6 @@ return {
                 name = "personal",
                 path = "~/vaults/personal",
             },
-            {
-                name = "work",
-                path = "~/vaults/work",
-            },
         },
 
         -- Daily notes configuration
