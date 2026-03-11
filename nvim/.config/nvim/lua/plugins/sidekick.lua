@@ -4,7 +4,7 @@ return {
     event = "VeryLazy",
     keys = {
       {
-        "<leader>as",
+        "<leader>ao",
         function()
           require("sidekick.cli").toggle({ name = "opencode", focus = true })
         end,
@@ -12,7 +12,7 @@ return {
         mode = { "n", "x" },
       },
       {
-        "<leader>ag",
+        "<leader>as",
         function()
           require("sidekick.cli").toggle({ name = "gemini", focus = true })
         end,
