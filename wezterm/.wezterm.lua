@@ -102,6 +102,7 @@ for i = 1, 9 do
 end
 
 config.window_decorations = "NONE"
+config.use_resize_increments = false -- Fix black bar by allowing smooth resizing
 
 -- Tmux-style Tab Bar configuration
 config.use_fancy_tab_bar = false
@@ -115,6 +116,8 @@ config.window_padding = {
   top = 0,
   bottom = 0,
 }
+
+config.color_scheme = "Catppuccin Mocha" -- Match Neovim theme to hide the resize void/black gap
 
 -- Catppuccin Mocha colors
 local colors = {
@@ -168,7 +171,7 @@ wezterm.on("update-status", function(window, pane)
 
   if window:leader_is_active() then
     left_bg = colors.peach
-    left_text = "  LEADER "
+    -- Keep left_text as workspace name
   end
 
   window:set_left_status(wezterm.format({
