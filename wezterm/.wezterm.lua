@@ -94,4 +94,47 @@ config.keys = {
 
 config.window_decorations = "NONE"
 
+-- Tmux-style Tab Bar configuration
+config.use_fancy_tab_bar = false
+config.tab_bar_at_bottom = true
+config.status_update_interval = 1000 -- Update clock/status every second
+
+wezterm.on("update-status", function(window, pane)
+  -- 1. Left Status: Current Workspace (Tmux "Session")
+  local workspace = window:active_workspace()
+  
+  -- 2. Right Status: Clock
+  local date = wezterm.strftime("%Y-%m-%d %H:%M:%S")
+  
+  window:set_left_status(wezterm.format({
+    { Background = { Color = "#333333" } },
+    { Foreground = { Color = "#ffffff" } },
+    { Text = " [" .. workspace .. "] " },
+  }))
+
+  window:set_right_status(wezterm.format({
+    { Background = { Color = "#333333" } },
+    { Foreground = { Color = "#ffffff" } },
+    { Text = " " .. date .. " " },
+  }))
+end)
+
+wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_width)
+  local index = tab.tab_index + 1
+  local title = tab.active_pane.title
+  
+  -- Color current tab differently (Tmux green style)
+  if tab.is_active then
+    return {
+      { Background = { Color = "#a6e3a1" } }, -- Catppuccin Green
+      { Foreground = { Color = "#11111b" } },
+      { Text = " " .. index .. ": " .. title .. " " },
+    }
+  end
+
+  return {
+    { Text = " " .. index .. ": " .. title .. " " },
+  }
+end)
+
 return config
