@@ -99,23 +99,80 @@ config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
 config.status_update_interval = 1000 -- Update clock/status every second
 
+-- Remove black bar gap between Neovim and the tab bar
+config.window_padding = {
+  left = 0,
+  right = 0,
+  top = 0,
+  bottom = 0,
+}
+
+-- Catppuccin Mocha colors
+local colors = {
+  crust = "#11111b",
+  mantle = "#181825",
+  base = "#1e1e2e",
+  surface0 = "#313244",
+  text = "#cdd6f4",
+  mauve = "#cba6f7",
+  green = "#a6e3a1",
+  peach = "#fab387",
+  blue = "#89b4fa",
+}
+
+config.colors = {
+  tab_bar = {
+    background = colors.base,
+    active_tab = {
+      bg_color = colors.mauve,
+      fg_color = colors.crust,
+    },
+    inactive_tab = {
+      bg_color = colors.mantle,
+      fg_color = colors.text,
+    },
+    inactive_tab_hover = {
+      bg_color = colors.surface0,
+      fg_color = colors.text,
+    },
+    new_tab = {
+      bg_color = colors.base,
+      fg_color = colors.text,
+    },
+    new_tab_hover = {
+      bg_color = colors.surface0,
+      fg_color = colors.text,
+    },
+  },
+}
+
 wezterm.on("update-status", function(window, pane)
-  -- 1. Left Status: Current Workspace (Tmux "Session")
+  -- 1. Left Status: Leader Indicator & Workspace
   local workspace = window:active_workspace()
-  
-  -- 2. Right Status: Clock
-  local date = wezterm.strftime("%Y-%m-%d %H:%M:%S")
-  
+  local left_bg = colors.blue
+  local left_text = "  " .. workspace .. "  "
+
+  if window:leader_is_active() then
+    left_bg = colors.peach
+    left_text = "  LEADER  "
+  end
+
   window:set_left_status(wezterm.format({
-    { Background = { Color = "#333333" } },
-    { Foreground = { Color = "#ffffff" } },
-    { Text = " [" .. workspace .. "] " },
+    { Background = { Color = left_bg } },
+    { Foreground = { Color = colors.crust } },
+    { Attribute = { Intensity = "Bold" } },
+    { Text = left_text },
+    { Background = { Color = colors.base } },
+    { Text = " " }, -- Small gap before tabs
   }))
 
+  -- 2. Right Status: Clock
+  local date = wezterm.strftime("%H:%M")
+  
   window:set_right_status(wezterm.format({
-    { Background = { Color = "#333333" } },
-    { Foreground = { Color = "#ffffff" } },
-    { Text = " " .. date .. " " },
+    { Background = { Color = colors.surface0 } },
+    { Foreground = { Color = colors.text } },
+    { Text = "  " .. date .. "  " },
   }))
 end)
 
@@ -123,17 +180,23 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
   local index = tab.tab_index + 1
   local title = tab.active_pane.title
   
-  -- Color current tab differently (Tmux green style)
   if tab.is_active then
     return {
-      { Background = { Color = "#a6e3a1" } }, -- Catppuccin Green
-      { Foreground = { Color = "#11111b" } },
-      { Text = " " .. index .. ": " .. title .. " " },
+      { Background = { Color = colors.mauve } },
+      { Foreground = { Color = colors.crust } },
+      { Attribute = { Intensity = "Bold" } },
+      { Text = " " .. index .. " " },
+      { Background = { Color = colors.surface0 } },
+      { Foreground = { Color = colors.text } },
+      { Attribute = { Intensity = "Normal" } },
+      { Text = " " .. title .. " " },
     }
   end
 
   return {
-    { Text = " " .. index .. ": " .. title .. " " },
+    { Background = { Color = colors.mantle } },
+    { Foreground = { Color = colors.text } },
+    { Text = " " .. index .. " " .. title .. " " },
   }
 end)
 
