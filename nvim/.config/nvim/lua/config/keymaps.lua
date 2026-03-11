@@ -41,12 +41,6 @@ vim.keymap.set("t", "<C-j>", "<C-\\><C-n><C-w>j", { noremap = true, desc = "Navi
 vim.keymap.set("t", "<C-k>", "<C-\\><C-n><C-w>k", { noremap = true, desc = "Navigate up from terminal" })
 vim.keymap.set("t", "<C-l>", "<C-\\><C-n><C-w>l", { noremap = true, desc = "Navigate right from terminal" })
 
--- Tmux navigation (seamless navigation between nvim splits and tmux panes)
-vim.keymap.set("n", "<C-h>", "<cmd>NvimTmuxNavigateLeft<cr>", { noremap = true, silent = true, desc = "Navigate left (tmux-aware)" })
-vim.keymap.set("n", "<C-j>", "<cmd>NvimTmuxNavigateDown<cr>", { noremap = true, silent = true, desc = "Navigate down (tmux-aware)" })
-vim.keymap.set("n", "<C-k>", "<cmd>NvimTmuxNavigateUp<cr>", { noremap = true, silent = true, desc = "Navigate up (tmux-aware)" })
-vim.keymap.set("n", "<C-l>", "<cmd>NvimTmuxNavigateRight<cr>", { noremap = true, silent = true, desc = "Navigate right (tmux-aware)" })
-
 -- Override snacks.nvim terminal keybindings to use toggleterm instead. C-_ is reqruied while using tmux
 vim.keymap.set({ "n", "t" }, "<C-/>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
 vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, desc = "Toggle Terminal" })
