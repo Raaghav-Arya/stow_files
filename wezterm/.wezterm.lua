@@ -92,6 +92,15 @@ config.keys = {
 	{ key = "Enter", mods = "SHIFT", action = wezterm.action.SendString("\x1b[13;2u") },
 }
 
+-- Add number based tab navigation (Leader + 1, 2, 3...)
+for i = 1, 9 do
+  table.insert(config.keys, {
+    key = tostring(i),
+    mods = "LEADER",
+    action = wezterm.action.ActivateTab(i - 1),
+  })
+end
+
 config.window_decorations = "NONE"
 
 -- Tmux-style Tab Bar configuration
@@ -121,6 +130,7 @@ local colors = {
 }
 
 config.colors = {
+  background = colors.base, -- Set background to match Catppuccin Base to hide the resize void/black gap
   tab_bar = {
     background = colors.base,
     active_tab = {
@@ -146,15 +156,19 @@ config.colors = {
   },
 }
 
+-- Powerline rounded characters
+local SOLID_LEFT = utf8.char(0xe0b6)
+local SOLID_RIGHT = utf8.char(0xe0b4)
+
 wezterm.on("update-status", function(window, pane)
   -- 1. Left Status: Leader Indicator & Workspace
   local workspace = window:active_workspace()
   local left_bg = colors.blue
-  local left_text = "  " .. workspace .. "  "
+  local left_text = "  " .. workspace .. " "
 
   if window:leader_is_active() then
     left_bg = colors.peach
-    left_text = "  LEADER  "
+    left_text = "  LEADER "
   end
 
   window:set_left_status(wezterm.format({
@@ -163,6 +177,9 @@ wezterm.on("update-status", function(window, pane)
     { Attribute = { Intensity = "Bold" } },
     { Text = left_text },
     { Background = { Color = colors.base } },
+    { Foreground = { Color = left_bg } },
+    { Text = SOLID_RIGHT },
+    { Background = { Color = colors.base } },
     { Text = " " }, -- Small gap before tabs
   }))
 
@@ -170,9 +187,12 @@ wezterm.on("update-status", function(window, pane)
   local date = wezterm.strftime("%H:%M")
   
   window:set_right_status(wezterm.format({
+    { Background = { Color = colors.base } },
+    { Foreground = { Color = colors.surface0 } },
+    { Text = SOLID_LEFT },
     { Background = { Color = colors.surface0 } },
     { Foreground = { Color = colors.text } },
-    { Text = "  " .. date .. "  " },
+    { Text = " " .. date .. "  " },
   }))
 end)
 
@@ -182,6 +202,9 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
   
   if tab.is_active then
     return {
+      { Background = { Color = colors.base } },
+      { Foreground = { Color = colors.mauve } },
+      { Text = SOLID_LEFT },
       { Background = { Color = colors.mauve } },
       { Foreground = { Color = colors.crust } },
       { Attribute = { Intensity = "Bold" } },
@@ -190,13 +213,32 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
       { Foreground = { Color = colors.text } },
       { Attribute = { Intensity = "Normal" } },
       { Text = " " .. title .. " " },
+      { Background = { Color = colors.base } },
+      { Foreground = { Color = colors.surface0 } },
+      { Text = SOLID_RIGHT },
+      { Background = { Color = colors.base } },
+      { Text = " " },
     }
   end
 
+  local bg = colors.mantle
+  local fg = colors.text
+  if hover then
+    bg = colors.surface0
+  end
+
   return {
-    { Background = { Color = colors.mantle } },
-    { Foreground = { Color = colors.text } },
+    { Background = { Color = colors.base } },
+    { Foreground = { Color = bg } },
+    { Text = SOLID_LEFT },
+    { Background = { Color = bg } },
+    { Foreground = { Color = fg } },
     { Text = " " .. index .. " " .. title .. " " },
+    { Background = { Color = colors.base } },
+    { Foreground = { Color = bg } },
+    { Text = SOLID_RIGHT },
+    { Background = { Color = colors.base } },
+    { Text = " " },
   }
 end)
 
