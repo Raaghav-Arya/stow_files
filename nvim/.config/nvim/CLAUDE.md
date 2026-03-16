@@ -99,6 +99,34 @@ This is a Neovim configuration based on LazyVim, a Neovim distribution that prov
 - **Blink-cmp**: Completion engine with Copilot integration, prioritized sources
 - **Copilot**: AI code suggestions (via LazyVim extras)
 
+##### Sidekick Multi-Session Design (`lua/plugins/sidekick.lua`)
+Sessions are named `claude_1`..`claude_5`. Dynamic tool configs are registered at runtime in `require("sidekick.config").cli.tools` — they are NOT in the static `opts`. This is intentional because:
+- Only the default `claude` tool has `is_proc`, avoiding tmux process-discovery conflicts with multiple sessions
+- `claude_N` tools are created on demand via `ensure_claude_slot(n)`
+
+Key keybinds:
+| Key | Action |
+|-----|--------|
+| `<leader>a1`-`<leader>a5` | Open/toggle session N (exclusive visibility) |
+| `<leader>an` | New session in next available slot |
+| `<leader>aa` | Picker — lists all `claude_N` sessions (attached or registered) |
+| `<leader>as` | Toggle all Claude sessions on/off |
+| `<leader>ak` | Kill all Claude sessions (detach + `tmux kill-session`) |
+| `<leader>ad` | Detach current session |
+| `<leader>at` | Send current context to active Claude session |
+| `<leader>av` | Send visual selection to Claude |
+| `<leader>af` | Send current file to Claude |
+| `<leader>ap` | Send clipboard to Claude |
+| `<leader>ac` | Toggle CopilotChat |
+
+##### Sidekick Session Restore (`lua/config/autocmds.lua`)
+On `SessionLoadPost`, the autocmd scans all tmux-discovered sessions and re-registers `claude_N` tools for any with matching cwd. Key design points:
+- After restart, sidekick's `is_proc` discovery assigns ALL Claude processes to the bare `claude` tool — `tool.name` is never `"claude_N"`. The original tool name is preserved in the tmux session name (`mux_session`), format: `"<tool_name> <sha256_prefix>"`.
+- The autocmd parses `mux_session` to recover the tool name and registers it in config — **no terminal windows are opened** on restore.
+- The picker (`<leader>aa`) uses `State.get({})` (not `attached = true`) so it lists registered-but-not-opened sessions.
+- When the user opens a session via picker or `<leader>aN`, sidekick uses `tmux new -A -s <sid>` which reconnects to the existing tmux session.
+- `<leader>ak` uses `State.get({})` and kills by `mux_session` (attached sessions) or by computed `Session.sid()` (registered-only tools), then removes them from config.
+
 #### Note-taking
 - **Obsidian**: Full note-taking integration at `<leader>o*` prefix
   - Workspaces: `~/vaults/personal`, `~/vaults/work`

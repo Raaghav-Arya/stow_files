@@ -18,5 +18,9 @@ glgo() { git log --oneline -"$@"; }
 # symbolic link creation
 lncp() { ln -s $(realpath "$1") $(realpath "$2"); }
 # Query claude in the terminal
-ask() { claude -p --model haiku "$*"; }
+ask() {
+  local cont=""
+  [ "$1" = "-c" ] && { cont="--continue"; shift; }
+  claude -p $cont --model haiku "$*"
+}
 

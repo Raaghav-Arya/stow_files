@@ -55,6 +55,10 @@ vim.keymap.set({ "n", "t" }, "<C-_>", "<cmd>ToggleTerm<cr>", { noremap = true, d
 vim.keymap.set("n", "<leader><space>", LazyVim.pick("files", { root = false }), { desc = "Find Files (cwd)" })
 vim.keymap.set("n", "<leader>/", LazyVim.pick("live_grep", { root = false }), { desc = "Grep (cwd)" })
 
+-- Remap macro recording from q to _
+vim.keymap.set("n", "_", "q", { noremap = true, desc = "Record macro" })
+vim.keymap.set("n", "q", "<nop>", { noremap = true, desc = "Disable q (macro recording moved to _)" })
+
 -- Yank current buffer's full file path to clipboard
 vim.keymap.set("n", "<leader>by", function()
   local path = vim.fn.expand("%:p")

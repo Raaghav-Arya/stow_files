@@ -20,7 +20,7 @@ vim.g.lazygit_use_custom_config_file_path = 1
 vim.g.lazygit_config_file_path = "~/.config/lazygit/config.yml"
 vim.o.swapfile = false -- Disable swapfile creation
 
-vim.g.root_spec = { { "lsp", ".git", "lua" }, "cwd" }
+vim.g.root_spec = { ".git", { "lsp", "lua" }, "cwd" }
 vim.o.exrc = true
 
 vim.g.vimtex_view_method = "zathura"
