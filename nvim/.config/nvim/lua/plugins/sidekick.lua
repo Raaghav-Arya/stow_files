@@ -233,6 +233,37 @@ local keys = {
     desc = "Kill All Claude Sessions",
   },
   {
+    "<leader>ax",
+    function()
+      local name = _active_session
+      if not name then
+        vim.notify("No active Claude session", vim.log.levels.INFO)
+        return
+      end
+      local ok, State = pcall(require, "sidekick.cli.state")
+      if not ok then return end
+      local states = State.get({})
+      local cfg_tools = require("sidekick.config").cli.tools
+      local Session = require("sidekick.cli.session")
+      for _, s in ipairs(states) do
+        if s.tool.name == name then
+          local mux_name = (s.session and s.session.mux_session)
+            or Session.sid({ tool = s.tool.name })
+          if s.attached then
+            State.detach(s)
+          end
+          cfg_tools[s.tool.name] = nil
+          _active_session = nil
+          vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
+          vim.notify("Killed Claude session: " .. name, vim.log.levels.INFO)
+          return
+        end
+      end
+      vim.notify("Session not found: " .. name, vim.log.levels.WARN)
+    end,
+    desc = "Kill Active Claude Session",
+  },
+  {
     "<leader>af",
     function()
       require("sidekick.cli").send({ msg = "{file}", name = get_active_claude_name() })
