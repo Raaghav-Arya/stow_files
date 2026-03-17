@@ -113,6 +113,7 @@ Key keybinds:
 | `<leader>an` | New session in next available slot |
 | `<leader>aa` | Picker — lists all `<tool>_N` sessions (attached or registered) |
 | `<leader>as` | Toggle all sessions on/off |
+| `<leader>al` | Switch to previous session |
 | `<leader>ak` | Kill all sessions (detach + `tmux kill-session`) |
 | `<leader>ax` | Kill active session |
 | `<leader>ad` | Detach current session |

@@ -11,6 +11,7 @@ local CLI_SK_FILE = "sk/cli/" .. CLI_TOOL .. ".lua"
 -- Module-level state for dynamic session management
 local _tool_base = nil
 local _active_session = nil -- name of the currently visible session
+local _prev_session = nil -- name of the previously visible session (for <leader>al)
 
 local function get_tool_base()
     if _tool_base then
@@ -82,6 +83,10 @@ local function toggle_session(name)
         _active_session = nil
         require("sidekick.cli").toggle({ name = name, focus = true })
     else
+        -- Track the outgoing session as prev before switching
+        if _active_session and _active_session ~= name then
+            _prev_session = _active_session
+        end
         -- Hide all other visible terminals first (synchronous)
         for _, s in ipairs(states) do
             if s.tool.name ~= name and is_cli_name(s.tool.name) and s.terminal and s.terminal:is_open() then
@@ -202,6 +207,19 @@ local keys = {
             _active_session = nil
         end,
         desc = "Detach CLI Session",
+    },
+    {
+        "<leader>al",
+        function()
+            if not _prev_session then
+                vim.notify("No previous " .. CLI_DISPLAY .. " session", vim.log.levels.INFO)
+                return
+            end
+            local name = _prev_session
+            ensure_slot(tonumber(name:match(CLI_NUM_PATTERN)) or 1)
+            toggle_session(name)
+        end,
+        desc = "Last " .. CLI_DISPLAY .. " Session",
     },
     {
         "<leader>ak",
