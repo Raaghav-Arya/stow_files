@@ -100,28 +100,31 @@ This is a Neovim configuration based on LazyVim, a Neovim distribution that prov
 - **Copilot**: AI code suggestions (via LazyVim extras)
 
 ##### Sidekick Multi-Session Design (`lua/plugins/sidekick.lua`)
-Sessions are named `claude_1`..`claude_5`. Dynamic tool configs are registered at runtime in `require("sidekick.config").cli.tools` — they are NOT in the static `opts`. This is intentional because:
-- Only the default `claude` tool has `is_proc`, avoiding tmux process-discovery conflicts with multiple sessions
-- `claude_N` tools are created on demand via `ensure_claude_slot(n)`
+**Portable CLI tool**: `local CLI_TOOL = "claude"` at the top of `sidekick.lua` is the single place to change the AI tool (e.g. `"gemini"`, `"copilot"`). All session names, patterns, commands, and notifications derive from it. `vim.g.sidekick_cli_tool` is set from this variable so `autocmds.lua` can read it.
+
+Sessions are named `<CLI_TOOL>_1`..`<CLI_TOOL>_5` (e.g. `claude_1`). Dynamic tool configs are registered at runtime in `require("sidekick.config").cli.tools` — they are NOT in the static `opts`. This is intentional because:
+- Only the default bare tool (e.g. `claude`) has `is_proc`, avoiding tmux process-discovery conflicts with multiple sessions
+- `<tool>_N` tools are created on demand via `ensure_slot(n)`
 
 Key keybinds:
 | Key | Action |
 |-----|--------|
 | `<leader>a1`-`<leader>a5` | Open/toggle session N (exclusive visibility) |
 | `<leader>an` | New session in next available slot |
-| `<leader>aa` | Picker — lists all `claude_N` sessions (attached or registered) |
-| `<leader>as` | Toggle all Claude sessions on/off |
-| `<leader>ak` | Kill all Claude sessions (detach + `tmux kill-session`) |
+| `<leader>aa` | Picker — lists all `<tool>_N` sessions (attached or registered) |
+| `<leader>as` | Toggle all sessions on/off |
+| `<leader>ak` | Kill all sessions (detach + `tmux kill-session`) |
+| `<leader>ax` | Kill active session |
 | `<leader>ad` | Detach current session |
-| `<leader>at` | Send current context to active Claude session |
-| `<leader>av` | Send visual selection to Claude |
-| `<leader>af` | Send current file to Claude |
-| `<leader>ap` | Send clipboard to Claude |
+| `<leader>at` | Send current context to active session |
+| `<leader>av` | Send visual selection to active session |
+| `<leader>af` | Send current file to active session |
+| `<leader>ap` | Send clipboard to active session |
 | `<leader>ac` | Toggle CopilotChat |
 
 ##### Sidekick Session Restore (`lua/config/autocmds.lua`)
-On `SessionLoadPost`, the autocmd scans all tmux-discovered sessions and re-registers `claude_N` tools for any with matching cwd. Key design points:
-- After restart, sidekick's `is_proc` discovery assigns ALL Claude processes to the bare `claude` tool — `tool.name` is never `"claude_N"`. The original tool name is preserved in the tmux session name (`mux_session`), format: `"<tool_name> <sha256_prefix>"`.
+On `SessionLoadPost`, the autocmd reads `vim.g.sidekick_cli_tool` (set by `sidekick.lua`) and re-registers `<tool>_N` tools for any tmux sessions with matching cwd. Key design points:
+- After restart, sidekick's `is_proc` discovery assigns ALL tool processes to the bare tool name — `tool.name` is never `"<tool>_N"`. The original tool name is preserved in the tmux session name (`mux_session`), format: `"<tool_name> <sha256_prefix>"`.
 - The autocmd parses `mux_session` to recover the tool name and registers it in config — **no terminal windows are opened** on restore.
 - The picker (`<leader>aa`) uses `State.get({})` (not `attached = true`) so it lists registered-but-not-opened sessions.
 - When the user opens a session via picker or `<leader>aN`, sidekick uses `tmux new -A -s <sid>` which reconnects to the existing tmux session.
