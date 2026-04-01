@@ -176,3 +176,6 @@ alias cargo="rustup.cargo"
 
 
 . "$HOME/.local/bin/env"
+
+
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv bash)"
