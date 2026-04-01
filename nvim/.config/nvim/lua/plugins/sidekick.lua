@@ -46,17 +46,58 @@ local function ensure_slot(n)
     return name
 end
 
-local function next_available_slot()
+local function ensure_extra_slot(tool_name, n)
+    local name = tool_name .. "_" .. n
     local tools = require("sidekick.config").cli.tools
-    local i = 1
-    while tools[CLI_PREFIX .. i] do
-        i = i + 1
+    if not tools[name] then
+        local base_config = tools[tool_name]
+        if base_config then
+            -- Deepcopy preserves cmd, env, keys, format, etc.
+            -- Strip is_proc to avoid tmux process-discovery conflicts (same as make_tool())
+            local cfg = vim.deepcopy(base_config)
+            cfg.is_proc = nil
+            tools[name] = cfg
+        else
+            -- Fallback for unknown tools not in sidekick's built-in config
+            tools[name] = { cmd = { tool_name } }
+        end
     end
-    return i
+    return name
+end
+
+local function next_global_slot()
+    local tools = require("sidekick.config").cli.tools
+    local max_n = 0
+    for name in pairs(tools) do
+        if name:match("^[%a_]+_%d+$") then
+            local n = tonumber(name:match("(%d+)$"))
+            if n and n > max_n then max_n = n end
+        end
+    end
+    return max_n + 1
 end
 
 local function is_cli_name(name)
     return name:match(CLI_PATTERN) ~= nil
+end
+
+-- True for claude_N (pattern only) or any other tool_N registered in cfg_tools
+local function is_our_session(name)
+    if is_cli_name(name) then return true end
+    local tools = require("sidekick.config").cli.tools
+    return tools[name] ~= nil and name:match("^[%a_]+_%d+$") ~= nil
+end
+
+-- Return the cfg_tools name for global slot i (e.g. "gemini_2"), or nil if none exists
+local function find_slot(i)
+    local tools = require("sidekick.config").cli.tools
+    local pattern = "^[%a_]+_" .. i .. "$"
+    for name in pairs(tools) do
+        if name:match(pattern) and is_our_session(name) then
+            return name
+        end
+    end
+    return nil
 end
 
 -- Enforce exclusive visibility: hide other terminals, show target
@@ -89,7 +130,7 @@ local function toggle_session(name)
         end
         -- Hide all other visible terminals first (synchronous)
         for _, s in ipairs(states) do
-            if s.tool.name ~= name and is_cli_name(s.tool.name) and s.terminal and s.terminal:is_open() then
+            if s.tool.name ~= name and is_our_session(s.tool.name) and s.terminal and s.terminal:is_open() then
                 s.terminal:hide()
             end
         end
@@ -111,7 +152,7 @@ local function toggle_all_sessions()
     local any_visible = false
 
     for _, s in ipairs(states) do
-        if is_cli_name(s.tool.name) and s.terminal and s.terminal:is_open() then
+        if is_our_session(s.tool.name) and s.terminal and s.terminal:is_open() then
             any_visible = true
             s.terminal:hide()
         end
@@ -138,7 +179,7 @@ local function get_active_session_name()
         return nil
     end
     for _, s in ipairs(State.get({ attached = true })) do
-        if is_cli_name(s.tool.name) and s.terminal and s.terminal:is_open() then
+        if is_our_session(s.tool.name) and s.terminal and s.terminal:is_open() then
             _active_session = s.tool.name
             return s.tool.name
         end
@@ -157,7 +198,7 @@ local keys = {
             local states = State.get({})
             local items = {}
             for _, s in ipairs(states) do
-                if is_cli_name(s.tool.name) then
+                if is_our_session(s.tool.name) then
                     items[#items + 1] = s
                 end
             end
@@ -175,8 +216,8 @@ local keys = {
                 end,
             }, function(choice)
                 if choice then
-                    local n = tonumber(choice.tool.name:match(CLI_NUM_PATTERN)) or 1
-                    ensure_slot(n)
+                    local n = tonumber(choice.tool.name:match(CLI_NUM_PATTERN))
+                    if n then ensure_slot(n) end
                     toggle_session(choice.tool.name)
                 end
             end)
@@ -184,9 +225,53 @@ local keys = {
         desc = "Pick " .. CLI_DISPLAY .. " Session",
     },
     {
+        "<leader>ao",
+        function()
+            local ok, State = pcall(require, "sidekick.cli.state")
+            if not ok then return end
+
+            local states = State.get({ installed = true })
+            local items = {}
+            for _, s in ipairs(states) do
+                local name = s.tool.name
+                -- Only bare tool names (no _N suffix), excluding the default CLI_TOOL
+                if name ~= CLI_TOOL and not name:match("^[%a_]+_%d+$") then
+                    items[#items + 1] = s
+                end
+            end
+
+            if #items == 0 then
+                vim.notify("No other installed CLI tools found", vim.log.levels.INFO)
+                return
+            end
+
+            local ok_sel, SelectMod = pcall(require, "sidekick.cli.ui.select")
+            local snacks_fmt = ok_sel and SelectMod.format or nil
+
+            vim.ui.select(items, {
+                prompt = "Open CLI Tool",
+                kind = "sidekick_cli",
+                format_item = function(s)
+                    local status = (s.terminal and s.terminal:is_open()) and " [visible]"
+                        or s.attached and " [attached]"
+                        or ""
+                    return s.tool.name .. status
+                end,
+                snacks = snacks_fmt and { format = snacks_fmt } or nil,
+            }, function(choice)
+                if choice then
+                    local n = next_global_slot()
+                    local name = ensure_extra_slot(choice.tool.name, n)
+                    toggle_session(name)
+                end
+            end)
+        end,
+        desc = "Open Other CLI Tool",
+    },
+    {
         "<leader>an",
         function()
-            local n = next_available_slot()
+            local n = next_global_slot()
             local name = ensure_slot(n)
             toggle_session(name)
         end,
@@ -216,7 +301,8 @@ local keys = {
                 return
             end
             local name = _prev_session
-            ensure_slot(tonumber(name:match(CLI_NUM_PATTERN)) or 1)
+            local n = tonumber(name:match(CLI_NUM_PATTERN))
+            if n then ensure_slot(n) end
             toggle_session(name)
         end,
         desc = "Last " .. CLI_DISPLAY .. " Session",
@@ -234,7 +320,7 @@ local keys = {
             local cfg_tools = require("sidekick.config").cli.tools
             local Session = require("sidekick.cli.session")
             for _, s in ipairs(states) do
-                if is_cli_name(s.tool.name) then
+                if is_our_session(s.tool.name) then
                     if s.session and s.session.mux_session then
                         -- Attached or discovered session: use stored tmux session name
                         tmux_sessions[#tmux_sessions + 1] = s.session.mux_session
@@ -255,9 +341,9 @@ local keys = {
                 vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
             end
             if count > 0 then
-                vim.notify("Killed " .. count .. " " .. CLI_DISPLAY .. " session(s)", vim.log.levels.INFO)
+                vim.notify("Killed " .. count .. " AI session(s)", vim.log.levels.INFO)
             else
-                vim.notify("No " .. CLI_DISPLAY .. " sessions to kill", vim.log.levels.INFO)
+                vim.notify("No AI sessions to kill", vim.log.levels.INFO)
             end
         end,
         desc = "Kill All " .. CLI_DISPLAY .. " Sessions",
@@ -358,7 +444,7 @@ for i = 1, 5 do
     keys[#keys + 1] = {
         "<leader>a" .. i,
         function()
-            local name = ensure_slot(i)
+            local name = find_slot(i) or ensure_slot(i)
             toggle_session(name)
         end,
         desc = CLI_DISPLAY .. " Session " .. i,
