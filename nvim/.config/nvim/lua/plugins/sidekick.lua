@@ -184,7 +184,8 @@ local function get_active_session_name()
             return s.tool.name
         end
     end
-    return nil
+    -- Default: register slot 1 so send uses a tracked session, not bare CLI_TOOL
+    return ensure_slot(1)
 end
 
 local keys = {
