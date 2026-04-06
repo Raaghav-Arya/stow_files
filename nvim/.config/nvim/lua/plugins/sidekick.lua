@@ -159,7 +159,7 @@ local function toggle_all_sessions()
     end
 
     if any_visible then
-        _active_session = nil
+        -- Keep _active_session so the next toggle restores the same session
     else
         -- Show the last active session, default to primary
         local name = _active_session or ensure_slot(1)
