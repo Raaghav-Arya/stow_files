@@ -337,15 +337,20 @@ local keys = {
                 end
             end
             _active_session = nil
-            -- Kill the tmux sessions after Neovim cleanup
+            -- Send /exit first so exit hooks can run, then kill after a delay
             for _, mux_name in ipairs(tmux_sessions) do
-                vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
+                vim.fn.system({ "tmux", "send-keys", "-t", mux_name, "/exit", "Enter" })
             end
             if count > 0 then
                 vim.notify("Killed " .. count .. " AI session(s)", vim.log.levels.INFO)
             else
                 vim.notify("No AI sessions to kill", vim.log.levels.INFO)
             end
+            vim.defer_fn(function()
+                for _, mux_name in ipairs(tmux_sessions) do
+                    vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
+                end
+            end, 5000)
         end,
         desc = "Kill All " .. CLI_DISPLAY .. " Sessions",
     },
@@ -372,8 +377,11 @@ local keys = {
                     end
                     cfg_tools[s.tool.name] = nil
                     _active_session = nil
-                    vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
+                    vim.fn.system({ "tmux", "send-keys", "-t", mux_name, "/exit", "Enter" })
                     vim.notify("Killed " .. CLI_DISPLAY .. " session: " .. name, vim.log.levels.INFO)
+                    vim.defer_fn(function()
+                        vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
+                    end, 5000)
                     return
                 end
             end
