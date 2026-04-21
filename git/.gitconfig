@@ -1,6 +1,6 @@
 [user]
     email = r-arya@ti.com
-    name = a0507112
+    name = "Raaghav Arya"
 [core]       
     gitproxy = none for ti.com
     gitproxy = /home/a0507112/git-proxy.sh
