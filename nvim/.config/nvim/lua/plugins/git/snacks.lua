@@ -70,6 +70,22 @@ return {
             desc = "Git Stash",
         },
 
+        -- Git branches
+        {
+            "<leader>gt",
+            function()
+                Snacks.picker.git_branches({ cwd = LazyVim.root.git(), layout = { hidden = { "preview" } } })
+            end,
+            desc = "Git Branches (local)",
+        },
+        {
+            "<leader>gT",
+            function()
+                Snacks.picker.git_branches({ cwd = LazyVim.root.git(), all = true, layout = { hidden = { "preview" } } })
+            end,
+            desc = "Git Branches (all)",
+        },
+
         -- Git files
         {
             "<leader>fg",
