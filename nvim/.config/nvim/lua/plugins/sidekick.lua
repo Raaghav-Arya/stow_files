@@ -71,7 +71,9 @@ local function next_global_slot()
     for name in pairs(tools) do
         if name:match("^[%a_]+_%d+$") then
             local n = tonumber(name:match("(%d+)$"))
-            if n and n > max_n then max_n = n end
+            if n and n > max_n then
+                max_n = n
+            end
         end
     end
     return max_n + 1
@@ -83,7 +85,9 @@ end
 
 -- True for gemini_N (pattern only) or any other tool_N registered in cfg_tools
 local function is_our_session(name)
-    if is_cli_name(name) then return true end
+    if is_cli_name(name) then
+        return true
+    end
     local tools = require("sidekick.config").cli.tools
     return tools[name] ~= nil and name:match("^[%a_]+_%d+$") ~= nil
 end
@@ -218,7 +222,9 @@ local keys = {
             }, function(choice)
                 if choice then
                     local n = tonumber(choice.tool.name:match(CLI_NUM_PATTERN))
-                    if n then ensure_slot(n) end
+                    if n then
+                        ensure_slot(n)
+                    end
                     toggle_session(choice.tool.name)
                 end
             end)
@@ -229,7 +235,9 @@ local keys = {
         "<leader>ao",
         function()
             local ok, State = pcall(require, "sidekick.cli.state")
-            if not ok then return end
+            if not ok then
+                return
+            end
 
             local states = State.get({ installed = true })
             local items = {}
@@ -303,7 +311,9 @@ local keys = {
             end
             local name = _prev_session
             local n = tonumber(name:match(CLI_NUM_PATTERN))
-            if n then ensure_slot(n) end
+            if n then
+                ensure_slot(n)
+            end
             toggle_session(name)
         end,
         desc = "Last " .. CLI_DISPLAY .. " Session",
@@ -461,65 +471,65 @@ for i = 1, 5 do
 end
 
 return {
-  {
-    "folke/sidekick.nvim",
-    event = "VeryLazy",
-    keys = keys,
-    opts = {
-      -- CLI configuration for AI tools
-      cli = {
-        mux = {
-          backend = "tmux", -- Using tmux as requested
-          enabled = true,
-        },
-      },
-      -- UI configuration
-      ui = {
-        border = "rounded",
-      },
-    },
-    -- Override the vim.ui.select configuration for sidekick_cli picker
-    dependencies = {
-      {
-        "folke/snacks.nvim",
-        opts = function(_, opts)
-    opts.picker = opts.picker or {}
-    opts.picker.ui_select = opts.picker.ui_select or {}
-    opts.picker.ui_select.sidekick_cli = {
-        mappings = {
-            d = {
-                mode = "n",
-                action = function(picker)
-                    local item = picker:current()
-                    if item and item.session then
-                        -- Send exit command to the selected session
-                        local cli = require("sidekick.cli")
-
-                        -- First close the picker
-                        picker:close()
-
-                        -- Send exit to the specific session
-                        vim.schedule(function()
-                            cli.send({
-                                msg = "exit",
-                                filter = { session = item.session.id },
-                            })
-                            vim.notify("Deleting session: " .. item.tool.name, vim.log.levels.INFO)
-                        end)
-                    else
-                        vim.notify("No active session to delete", vim.log.levels.WARN)
-                    end
-                end,
-                desc = "Delete session",
+    {
+        "folke/sidekick.nvim",
+        event = "VeryLazy",
+        keys = keys,
+        opts = {
+            -- CLI configuration for AI tools
+            cli = {
+                mux = {
+                    backend = "tmux", -- Using tmux as requested
+                    enabled = true,
+                },
+            },
+            -- UI configuration
+            ui = {
+                border = "rounded",
             },
         },
-    }
-    return opts
+        -- Override the vim.ui.select configuration for sidekick_cli picker
+        dependencies = {
+            {
+                "folke/snacks.nvim",
+                opts = function(_, opts)
+                    opts.picker = opts.picker or {}
+                    opts.picker.ui_select = opts.picker.ui_select or {}
+                    opts.picker.ui_select.sidekick_cli = {
+                        mappings = {
+                            d = {
+                                mode = "n",
+                                action = function(picker)
+                                    local item = picker:current()
+                                    if item and item.session then
+                                        -- Send exit command to the selected session
+                                        local cli = require("sidekick.cli")
+
+                                        -- First close the picker
+                                        picker:close()
+
+                                        -- Send exit to the specific session
+                                        vim.schedule(function()
+                                            cli.send({
+                                                msg = "exit",
+                                                filter = { session = item.session.id },
+                                            })
+                                            vim.notify("Deleting session: " .. item.tool.name, vim.log.levels.INFO)
+                                        end)
+                                    else
+                                        vim.notify("No active session to delete", vim.log.levels.WARN)
+                                    end
+                                end,
+                                desc = "Delete session",
+                            },
+                        },
+                    }
+                    return opts
+                end,
+            },
+        },
+        config = function(_, opts)
+            require("sidekick").setup(opts)
         end,
-      },
     },
-    config = function(_, opts)
-    require("sidekick").setup(opts)
-    end,
-  },
 }
