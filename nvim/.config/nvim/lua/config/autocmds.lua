@@ -18,7 +18,7 @@ vim.api.nvim_create_autocmd("SessionLoadPost", {
         return
       end
 
-      local CLI_TOOL = vim.g.sidekick_cli_tool or "gemini"
+      local CLI_TOOL = vim.g.sidekick_cli_tool or "agy"
       local CLI_DISPLAY = CLI_TOOL:sub(1, 1):upper() .. CLI_TOOL:sub(2)
 
       -- Get current working directory

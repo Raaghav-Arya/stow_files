@@ -6,55 +6,21 @@ local CLI_PREFIX = CLI_TOOL .. "_"
 local CLI_PATTERN = "^" .. CLI_TOOL .. "_%d+$"
 local CLI_NUM_PATTERN = "^" .. CLI_TOOL .. "_(%d+)$"
 local CLI_DISPLAY = CLI_TOOL:sub(1, 1):upper() .. CLI_TOOL:sub(2)
-local CLI_SK_FILE = "sk/cli/" .. CLI_TOOL .. ".lua"
 
 -- Module-level state for dynamic session management
-local _tool_base = nil
 local _active_session = nil -- name of the currently visible session
 local _prev_session = nil -- name of the previously visible session (for <leader>al)
-
-local function get_tool_base()
-    if _tool_base then
-        return _tool_base
-    end
-    local f = vim.api.nvim_get_runtime_file(CLI_SK_FILE, false)[1]
-    if f then
-        local ok, ret = pcall(dofile, f)
-        if ok and type(ret) == "table" then
-            _tool_base = ret
-        end
-    end
-    _tool_base = _tool_base or {}
-    return _tool_base
-end
-
-local function make_tool()
-    local base = get_tool_base()
-    return {
-        cmd = { CLI_TOOL },
-        format = base.format,
-        -- NOTE: no is_proc to avoid tmux process-discovery conflicts with multiple tools
-    }
-end
-
-local function ensure_slot(n)
-    local name = CLI_PREFIX .. n
-    local tools = require("sidekick.config").cli.tools
-    if not tools[name] then
-        tools[name] = make_tool()
-    end
-    return name
-end
 
 local function ensure_extra_slot(tool_name, n)
     local name = tool_name .. "_" .. n
     local tools = require("sidekick.config").cli.tools
     if not tools[name] then
-        local base_config = tools[tool_name]
-        if base_config then
+        local ok, ToolMod = pcall(require, "sidekick.cli.tool")
+        local base_tool = ok and ToolMod.get(tool_name) or nil
+        if base_tool and base_tool.cmd then
             -- Deepcopy preserves cmd, env, keys, format, etc.
             -- Strip is_proc to avoid tmux process-discovery conflicts (same as make_tool())
-            local cfg = vim.deepcopy(base_config)
+            local cfg = vim.deepcopy(base_tool.config)
             cfg.is_proc = nil
             tools[name] = cfg
         else
@@ -63,6 +29,11 @@ local function ensure_extra_slot(tool_name, n)
         end
     end
     return name
+end
+
+
+local function ensure_slot(n)
+    return ensure_extra_slot(CLI_TOOL, n)
 end
 
 local function next_global_slot()
@@ -83,7 +54,7 @@ local function is_cli_name(name)
     return name:match(CLI_PATTERN) ~= nil
 end
 
--- True for gemini_N (pattern only) or any other tool_N registered in cfg_tools
+-- True for primary_tool_N (pattern only) or any other tool_N registered in cfg_tools
 local function is_our_session(name)
     if is_cli_name(name) then
         return true
@@ -243,14 +214,14 @@ local keys = {
             local items = {}
             for _, s in ipairs(states) do
                 local name = s.tool.name
-                -- Only bare tool names (no _N suffix), excluding the default CLI_TOOL
-                if name ~= CLI_TOOL and not name:match("^[%a_]+_%d+$") then
+                -- Only bare tool names (no _N suffix)
+                if not name:match("^[%a_]+_%d+$") then
                     items[#items + 1] = s
                 end
             end
 
             if #items == 0 then
-                vim.notify("No other installed CLI tools found", vim.log.levels.INFO)
+                vim.notify("No installed CLI tools found", vim.log.levels.INFO)
                 return
             end
 
@@ -481,6 +452,11 @@ return {
                 mux = {
                     backend = "tmux", -- Using tmux as requested
                     enabled = true,
+                },
+                tools = {
+                    agy = {
+                        cmd = { vim.fn.expand("~/.local/bin/agy") },
+                    },
                 },
             },
             -- UI configuration
