@@ -12,6 +12,7 @@ local CLI_SK_FILE = "sk/cli/" .. CLI_TOOL .. ".lua"
 local _tool_base = nil
 local _active_session = nil -- name of the currently visible session
 local _prev_session = nil -- name of the previously visible session (for <leader>al)
+local _kill_counter = 0 -- incremented per killed session; ensures unique renamed names
 
 local function get_tool_base()
     if _tool_base then
@@ -86,6 +87,18 @@ local function is_our_session(name)
     if is_cli_name(name) then return true end
     local tools = require("sidekick.config").cli.tools
     return tools[name] ~= nil and name:match("^[%a_]+_%d+$") ~= nil
+end
+
+-- Rename the tmux session to a unique _killed_N name, send /exit, then kill after delay.
+-- Renaming frees the original slot name immediately so a new session can reuse it.
+local function kill_tmux_session(mux_name)
+    _kill_counter = _kill_counter + 1
+    local killed_name = mux_name .. "_killed_" .. _kill_counter
+    vim.fn.system({ "tmux", "rename-session", "-t", mux_name, killed_name })
+    vim.fn.system({ "tmux", "send-keys", "-t", killed_name, "/exit", "Enter" })
+    vim.defer_fn(function()
+        vim.fn.system({ "tmux", "kill-session", "-t", killed_name })
+    end, 5000)
 end
 
 -- Return the cfg_tools name for global slot i (e.g. "gemini_2"), or nil if none exists
@@ -337,20 +350,15 @@ local keys = {
                 end
             end
             _active_session = nil
-            -- Send /exit first so exit hooks can run, then kill after a delay
+            -- Rename each session before killing so the slot name is freed immediately
             for _, mux_name in ipairs(tmux_sessions) do
-                vim.fn.system({ "tmux", "send-keys", "-t", mux_name, "/exit", "Enter" })
+                kill_tmux_session(mux_name)
             end
             if count > 0 then
                 vim.notify("Killed " .. count .. " AI session(s)", vim.log.levels.INFO)
             else
                 vim.notify("No AI sessions to kill", vim.log.levels.INFO)
             end
-            vim.defer_fn(function()
-                for _, mux_name in ipairs(tmux_sessions) do
-                    vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
-                end
-            end, 5000)
         end,
         desc = "Kill All " .. CLI_DISPLAY .. " Sessions",
     },
@@ -377,11 +385,8 @@ local keys = {
                     end
                     cfg_tools[s.tool.name] = nil
                     _active_session = nil
-                    vim.fn.system({ "tmux", "send-keys", "-t", mux_name, "/exit", "Enter" })
+                    kill_tmux_session(mux_name)
                     vim.notify("Killed " .. CLI_DISPLAY .. " session: " .. name, vim.log.levels.INFO)
-                    vim.defer_fn(function()
-                        vim.fn.system({ "tmux", "kill-session", "-t", mux_name })
-                    end, 5000)
                     return
                 end
             end
