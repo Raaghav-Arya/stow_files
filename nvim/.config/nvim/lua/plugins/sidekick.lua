@@ -477,6 +477,12 @@ return {
           backend = "tmux", -- Using tmux as requested
           enabled = true,
         },
+        win = {
+          keys = {
+            prompt = false, -- pass <C-p> through to Claude Code for navigation
+            buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
+          },
+        },
       },
       -- UI configuration
       ui = {
