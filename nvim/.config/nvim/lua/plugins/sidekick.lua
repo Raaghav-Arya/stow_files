@@ -447,70 +447,76 @@ for i = 1, 5 do
 end
 
 return {
-    {
-        "folke/sidekick.nvim",
-        event = "VeryLazy",
-        keys = keys,
-        opts = {
-            -- CLI configuration for AI tools
-            cli = {
-                mux = {
-                    backend = "tmux", -- Using tmux as requested
-                    enabled = true,
-                },
-                tools = {
-                    agy = {
-                        cmd = { vim.fn.expand("~/.local/bin/agy") },
-                    },
-                },
-            },
-            -- UI configuration
-            ui = {
-                border = "rounded",
+  {
+    "folke/sidekick.nvim",
+    event = "VeryLazy",
+    keys = keys,
+    opts = {
+      -- CLI configuration for AI tools
+      cli = {
+        mux = {
+          backend = "tmux", -- Using tmux as requested
+          enabled = true,
+        },
+        tools = {
+            agy = {
+                cmd = { vim.fn.expand("~/.local/bin/agy") },
             },
         },
+        win = {
+          keys = {
+            prompt = false, -- pass <C-p> through to Claude Code for navigation
+            buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
+          },
+        },
+      },
+      -- UI configuration
+      ui = {
+        border = "rounded",
+      },
+    },
         -- Override the vim.ui.select configuration for sidekick_cli picker
         dependencies = {
             {
                 "folke/snacks.nvim",
                 opts = function(_, opts)
-                    opts.picker = opts.picker or {}
-                    opts.picker.ui_select = opts.picker.ui_select or {}
-                    opts.picker.ui_select.sidekick_cli = {
-                        mappings = {
-                            d = {
-                                mode = "n",
-                                action = function(picker)
-                                    local item = picker:current()
-                                    if item and item.session then
-                                        -- Send exit command to the selected session
-                                        local cli = require("sidekick.cli")
+    opts.picker = opts.picker or {}
+    opts.picker.ui_select = opts.picker.ui_select or {}
+    opts.picker.ui_select.sidekick_cli = {
+        mappings = {
+            d = {
+                mode = "n",
+                action = function(picker)
+                    local item = picker:current()
+                    if item and item.session then
+                        -- Send exit command to the selected session
+                        local cli = require("sidekick.cli")
 
-                                        -- First close the picker
-                                        picker:close()
+                        -- First close the picker
+                        picker:close()
 
-                                        -- Send exit to the specific session
-                                        vim.schedule(function()
-                                            cli.send({
-                                                msg = "exit",
-                                                filter = { session = item.session.id },
-                                            })
-                                            vim.notify("Deleting session: " .. item.tool.name, vim.log.levels.INFO)
-                                        end)
-                                    else
-                                        vim.notify("No active session to delete", vim.log.levels.WARN)
-                                    end
-                                end,
-                                desc = "Delete session",
-                            },
-                        },
-                    }
-                    return opts
+                        -- Send exit to the specific session
+                        vim.schedule(function()
+                            cli.send({
+                                msg = "exit",
+                                filter = { session = item.session.id },
+                            })
+                            vim.notify("Deleting session: " .. item.tool.name, vim.log.levels.INFO)
+                        end)
+                    else
+                        vim.notify("No active session to delete", vim.log.levels.WARN)
+                    end
+                end,
+                desc = "Delete session",
+            },
+        },
+    }
+    return opts
                 end,
             },
         },
         config = function(_, opts)
-            require("sidekick").setup(opts)
+    require("sidekick").setup(opts)
         end,
     },
 }
