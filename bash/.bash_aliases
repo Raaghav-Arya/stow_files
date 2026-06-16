@@ -5,7 +5,8 @@ alias glg="git log"
 alias rst2rem="git reset --hard @{u}"
 alias ls='ls -v '
 alias bat="batcat"
-alias cat="bat"
+alias cat="bat -P"
+alias less="bat"
 
 # Makes a new dir and cd to it
 mkcd() { mkdir -p "$@" && cd "$@" || exit; }
