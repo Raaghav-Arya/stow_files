@@ -102,9 +102,10 @@ for i = 1, 9 do
 end
 
 config.window_decorations = "NONE"
-config.use_resize_increments = false -- Fix black bar by allowing smooth resizing
+config.use_resize_increments = true -- Force window to snap to character heights, eliminating physical black gaps
 
 -- Tmux-style Tab Bar configuration
+config.enable_tab_bar = false
 config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
 config.status_update_interval = 1000 -- Update clock/status every second
@@ -116,6 +117,34 @@ config.window_padding = {
   top = 0,
   bottom = 0,
 }
+
+-- Rename Workspace (Session) like Tmux: prefix + $
+table.insert(config.keys, {
+  key = "$",
+  mods = "LEADER",
+  action = wezterm.action.PromptInputLine({
+    description = "Enter new name for session",
+    action = wezterm.action_callback(function(window, pane, line)
+      if line then
+        wezterm.mux.rename_workspace(window:mux_window():get_workspace(), line)
+      end
+    end),
+  }),
+})
+
+-- Rename Tab (Window) like Tmux: prefix + ,
+table.insert(config.keys, {
+  key = ",",
+  mods = "LEADER",
+  action = wezterm.action.PromptInputLine({
+    description = "Enter new name for tab",
+    action = wezterm.action_callback(function(window, pane, line)
+      if line then
+        window:active_tab():set_title(line)
+      end
+    end),
+  }),
+})
 
 config.color_scheme = "Catppuccin Mocha" -- Match Neovim theme to hide the resize void/black gap
 
@@ -201,7 +230,7 @@ end)
 
 wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_width)
   local index = tab.tab_index + 1
-  local title = tab.active_pane.title
+  local title = tab.tab_title and #tab.tab_title > 0 and tab.tab_title or tab.active_pane.title
   
   if tab.is_active then
     return {
