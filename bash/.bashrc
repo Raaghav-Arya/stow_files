@@ -128,3 +128,6 @@ if ! shopt -oq posix; then
   fi
 fi
 
+# Added by Antigravity CLI installer
+export PATH="/home/raaghav/.local/bin:$PATH"
+
