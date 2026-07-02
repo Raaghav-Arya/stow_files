@@ -12,7 +12,6 @@
 return {
     -- Import all git plugin configurations
     { import = "plugins.git.neogit" },
-    { import = "plugins.git.diffview" },
     { import = "plugins.git.gitsigns" },
     { import = "plugins.git.lazygit" },
     { import = "plugins.git.snacks" },

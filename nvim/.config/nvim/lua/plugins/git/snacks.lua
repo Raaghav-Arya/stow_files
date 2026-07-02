@@ -10,14 +10,14 @@ return {
         {
             "<leader>gl",
             function()
-                Snacks.picker.git_log({ cwd = LazyVim.root.git() })
+                Snacks.picker.git_log({ cwd = LazyVim.root.git(), layout = { hidden = { "preview" } } })
             end,
             desc = "Git Log (Buffer's Git Root)",
         },
         {
             "<leader>gL",
             function()
-                Snacks.picker.git_log({ cwd = vim.fn.getcwd() })
+                Snacks.picker.git_log({ cwd = vim.fn.getcwd(), layout = { hidden = { "preview" } } })
             end,
             desc = "Git Log (cwd)",
         },
