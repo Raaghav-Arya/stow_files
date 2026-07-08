@@ -181,6 +181,47 @@ local function toggle_all_sessions()
     end
 end
 
+-- Return all registered session names sorted by slot number
+local function get_all_session_names()
+    local tools = require("sidekick.config").cli.tools
+    local names = {}
+    for name in pairs(tools) do
+        if is_our_session(name) then
+            names[#names + 1] = name
+        end
+    end
+    table.sort(names, function(a, b)
+        local na = tonumber(a:match("(%d+)$")) or 0
+        local nb = tonumber(b:match("(%d+)$")) or 0
+        return na < nb
+    end)
+    return names
+end
+
+local function navigate_session(direction)
+    local names = get_all_session_names()
+    if #names == 0 then
+        local name = ensure_slot(1)
+        toggle_session(name)
+        return
+    end
+    local idx = 0
+    for i, name in ipairs(names) do
+        if name == _active_session then
+            idx = i
+            break
+        end
+    end
+    if idx == 0 then
+        idx = direction == 1 and #names or 1
+    end
+    local new_idx = ((idx - 1 + direction) % #names) + 1
+    local name = names[new_idx]
+    local n = tonumber(name:match(CLI_NUM_PATTERN))
+    if n then ensure_slot(n) end
+    toggle_session(name)
+end
+
 -- Returns the name of the currently visible session for send routing
 local function get_active_session_name()
     if _active_session then
@@ -451,6 +492,16 @@ local keys = {
         end,
         expr = true,
         desc = "Goto/Apply Next Edit Suggestion",
+    },
+    {
+        "<leader>a]",
+        function() navigate_session(1) end,
+        desc = "Next " .. CLI_DISPLAY .. " Session",
+    },
+    {
+        "<leader>a[",
+        function() navigate_session(-1) end,
+        desc = "Prev " .. CLI_DISPLAY .. " Session",
     },
 }
 
