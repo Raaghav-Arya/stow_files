@@ -1,3 +1,32 @@
+-- Open a file diff and delete the backing temp files once that diff tab closes
+local function open_file_diff_and_cleanup(file1, file2, tmp_dir)
+    vim.cmd("CodeDiff file " .. vim.fn.fnameescape(file1) .. " " .. vim.fn.fnameescape(file2))
+
+    local tabpage = vim.api.nvim_get_current_tabpage()
+    local group = vim.api.nvim_create_augroup("CodeDiffSelectionCleanup" .. tabpage, { clear = true })
+    vim.api.nvim_create_autocmd("User", {
+        group = group,
+        pattern = "CodeDiffClose",
+        callback = function(ev)
+            if ev.data.tabpage == tabpage then
+                vim.api.nvim_del_augroup_by_id(group)
+                -- Defer: codediff's own close handling still touches these
+                -- buffers after this event fires, so deleting them here
+                -- would pull the rug out from under it.
+                vim.schedule(function()
+                    for _, file in ipairs({ file1, file2 }) do
+                        local bufnr = vim.fn.bufnr(vim.fn.fnamemodify(file, ":p"))
+                        if bufnr ~= -1 then
+                            pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+                        end
+                    end
+                    vim.fn.delete(tmp_dir, "rf")
+                end)
+            end
+        end,
+    })
+end
+
 return {
     "esmuellert/codediff.nvim",
     dependencies = { "MunifTanjim/nui.nvim" },
@@ -57,7 +86,7 @@ return {
                 vim.fn.writefile(vim.split(second_selection, "\n"), file2)
 
                 -- Open in codediff
-                vim.cmd("CodeDiff file " .. vim.fn.fnameescape(file1) .. " " .. vim.fn.fnameescape(file2))
+                open_file_diff_and_cleanup(file1, file2, tmp_dir)
 
                 -- Clean up
                 vim.g.codediff_first_selection = nil
@@ -95,7 +124,7 @@ return {
                 vim.fn.writefile(vim.split(second, "\n"), file2)
 
                 -- Open in codediff
-                vim.cmd("CodeDiff file " .. vim.fn.fnameescape(file1) .. " " .. vim.fn.fnameescape(file2))
+                open_file_diff_and_cleanup(file1, file2, tmp_dir)
             end,
             mode = "v",
             desc = "Diff: Compare with last yank",
