@@ -66,4 +66,24 @@ vim.keymap.set("n", "<leader>by", function()
   vim.notify("Yanked: " .. path, vim.log.levels.INFO)
 end, { noremap = true, desc = "Yank file path" })
 
+-- Yank current buffer's full file path with visual selection line/column range
+vim.keymap.set("v", "<leader>by", function()
+  local path = vim.fn.expand("%:p")
+  local mode = vim.fn.visualmode()
+  local start_pos = vim.fn.getpos("'<")
+  local end_pos = vim.fn.getpos("'>")
+  local start_line, start_col = start_pos[2], start_pos[3]
+  local end_line, end_col = end_pos[2], end_pos[3]
+
+  local result
+  if mode == "V" then
+    result = string.format("%s#L%d-L%d", path, start_line, end_line)
+  else
+    result = string.format("%s#L%d:C%d-L%d:C%d", path, start_line, start_col, end_line, end_col)
+  end
+
+  vim.fn.setreg("+", result)
+  vim.notify("Yanked: " .. result, vim.log.levels.INFO)
+end, { noremap = true, desc = "Yank file path with selection range" })
+
 
