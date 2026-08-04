@@ -27,6 +27,66 @@ local function open_file_diff_and_cleanup(file1, file2, tmp_dir)
     })
 end
 
+-- Incrementally fetch more (older) commits into an open history panel.
+-- codediff caps :CodeDiff history at 100 commits by default; passing an
+-- explicit range (e.g. HEAD) to bypass that cap fetches the *entire*
+-- reachable history in one go, which is what causes lag on repos with a
+-- long history. This instead raises the limit by one page at a time.
+local HISTORY_LOAD_MORE_STEP = 100
+
+local function load_more_history()
+    local lifecycle = require("codediff.ui.lifecycle")
+    local tabpage = vim.api.nvim_get_current_tabpage()
+    local session = lifecycle.get_session(tabpage)
+    if not session or session.mode ~= "history" then
+        return
+    end
+
+    local history = lifecycle.get_explorer(tabpage)
+    if not history then
+        return
+    end
+
+    local git = require("codediff.core.git")
+    local render = require("codediff.ui.history.render")
+
+    local current_count = #(history.commits or {})
+    local git_opts = {
+        no_merges = true,
+        path = history.opts.file_path,
+        line_range = history.opts.line_range,
+        limit = current_count + HISTORY_LOAD_MORE_STEP,
+    }
+
+    vim.notify("Loading more commits...", vim.log.levels.INFO)
+
+    git.get_commit_list(history.opts.range or "", history.git_root, git_opts, function(err, commits)
+        if err then
+            vim.schedule(function()
+                vim.notify("Failed to load more history: " .. err, vim.log.levels.ERROR)
+            end)
+            return
+        end
+
+        vim.schedule(function()
+            if not vim.api.nvim_buf_is_valid(history.bufnr) then
+                return
+            end
+
+            if #commits <= current_count then
+                vim.notify("No more commits to load", vim.log.levels.WARN)
+                return
+            end
+
+            history.commits = commits
+            local tree_nodes = render.build_tree_nodes(commits, history.git_root, history.opts)
+            history.tree:set_nodes(tree_nodes)
+            history.tree:render()
+            vim.notify(string.format("Loaded %d commits (was %d)", #commits, current_count), vim.log.levels.INFO)
+        end)
+    end)
+end
+
 -- Jump to the first/last changed hunk in the current file. codediff only
 -- exposes relative next/prev hunk navigation, so this reimplements the
 -- buffer/line-side detection from its own next_hunk/prev_hunk but jumps
@@ -217,6 +277,13 @@ return {
             pattern = { "codediff-explorer", "codediff-history" },
             callback = function(ev)
                 vim.keymap.set("n", "l", "<CR>", { buffer = ev.buf, remap = true })
+            end,
+        })
+
+        vim.api.nvim_create_autocmd("FileType", {
+            pattern = "codediff-history",
+            callback = function(ev)
+                vim.keymap.set("n", "<leader>m", load_more_history, { buffer = ev.buf, desc = "CodeDiff: Load more commits" })
             end,
         })
     end,
