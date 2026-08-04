@@ -5,6 +5,7 @@ return {
         spec = {
             { "<leader>h", group = "hunks", icon = "󰊢" },
             { "<leader>o", group = "obsidian", icon = "󰠮" },
+            { "<leader>gc", group = "codediff", icon = "" },
         },
     },
 }
