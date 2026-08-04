@@ -84,6 +84,13 @@ return {
         },
         { "<leader>gcf", "<cmd>CodeDiff history %<cr>", desc = "Open CodeDiff history for current file" },
 
+        -- Registered globally (not tab-scoped) because jump_to_hunk_edge
+        -- resolves the session/buffers itself on every call; a tab-scoped
+        -- keymap set once at CodeDiffOpen would go stale as soon as the
+        -- explorer/history panel switches to a different file's buffers.
+        { "[H", function() jump_to_hunk_edge("first") end, desc = "CodeDiff: Jump to first hunk" },
+        { "]H", function() jump_to_hunk_edge("last") end, desc = "CodeDiff: Jump to last hunk" },
+
         -- Compare two visual selections
         {
             "<leader>gv",
@@ -200,14 +207,6 @@ return {
                         end, { desc = "Toggle history panel visibility" })
                     end
                 end
-
-                -- First/last hunk jumps (codediff only ships relative ]h/[h)
-                lifecycle.set_tab_keymap(tabpage, "n", "[H", function()
-                    jump_to_hunk_edge("first")
-                end, { desc = "Jump to first hunk" })
-                lifecycle.set_tab_keymap(tabpage, "n", "]H", function()
-                    jump_to_hunk_edge("last")
-                end, { desc = "Jump to last hunk" })
             end,
         })
 
