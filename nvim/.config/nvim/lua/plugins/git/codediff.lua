@@ -252,21 +252,30 @@ return {
             pattern = "CodeDiffOpen",
             callback = function(ev)
                 require("codediff.ui.view.compact").enable(ev.data.tabpage)
+            end,
+        })
 
-                local tabpage = ev.data.tabpage
+        -- Re-apply the <leader>e history-toggle override on every buffer
+        -- entered while the tab's session is in history mode. A one-time
+        -- registration at CodeDiffOpen only lands on buffers that exist at
+        -- that moment (the history panel itself); the diff panes don't
+        -- exist yet, so focus landing there after hiding the panel would
+        -- otherwise fall through to the global <leader>e (Snacks Explorer).
+        vim.api.nvim_create_autocmd("BufEnter", {
+            callback = function(ev)
                 local lifecycle = require("codediff.ui.lifecycle")
+                local tabpage = vim.api.nvim_get_current_tabpage()
+                local session = lifecycle.get_session(tabpage)
+                if not session or session.mode ~= "history" then
+                    return
+                end
 
-                -- Plugin only registers toggle_explorer in explorer mode, so
-                -- <leader>e is free here; reuse it to toggle history panel
-                -- visibility (history panel shares the "explorer" slot).
-                if ev.data.mode == "history" then
+                vim.keymap.set("n", "<leader>e", function()
                     local history_obj = lifecycle.get_explorer(tabpage)
                     if history_obj then
-                        lifecycle.set_tab_keymap(tabpage, "n", "<leader>e", function()
-                            require("codediff.ui.history").toggle_visibility(history_obj)
-                        end, { desc = "Toggle history panel visibility" })
+                        require("codediff.ui.history").toggle_visibility(history_obj)
                     end
-                end
+                end, { buffer = ev.buf, desc = "Toggle history panel visibility" })
             end,
         })
 
