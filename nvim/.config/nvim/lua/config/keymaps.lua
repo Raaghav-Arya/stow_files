@@ -59,9 +59,16 @@ end, { noremap = true, desc = "Yank file path" })
 -- Yank current buffer's full file path with visual selection line/column range
 vim.keymap.set("v", "<leader>by", function()
   local path = vim.fn.expand("%:p")
-  local mode = vim.fn.visualmode()
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
+  local mode = vim.fn.mode()
+  -- '<'/'>' marks lag behind by one selection (they're only set on leaving
+  -- visual mode, which hasn't happened yet inside this callback), so use the
+  -- live "v" (visual start) and "." (cursor) marks instead.
+  local v_pos = vim.fn.getpos("v")
+  local dot_pos = vim.fn.getpos(".")
+  local start_pos, end_pos = v_pos, dot_pos
+  if v_pos[2] > dot_pos[2] or (v_pos[2] == dot_pos[2] and v_pos[3] > dot_pos[3]) then
+    start_pos, end_pos = dot_pos, v_pos
+  end
   local start_line, start_col = start_pos[2], start_pos[3]
   local end_line, end_col = end_pos[2], end_pos[3]
 
