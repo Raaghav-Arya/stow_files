@@ -328,6 +328,18 @@ local keys = {
         desc = "Detach CLI Session",
     },
     {
+        "<leader>ar",
+        function()
+            local count = require("config.sidekick_restore").restore()
+            if count > 0 then
+                vim.notify("Relinked " .. count .. " " .. CLI_DISPLAY .. " session(s)", vim.log.levels.INFO)
+            else
+                vim.notify("No matching " .. CLI_DISPLAY .. " sessions for this cwd", vim.log.levels.INFO)
+            end
+        end,
+        desc = "Relink " .. CLI_DISPLAY .. " Sessions (no buffer restore)",
+    },
+    {
         "<leader>al",
         function()
             if not _prev_session then
