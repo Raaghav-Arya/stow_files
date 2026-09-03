@@ -36,14 +36,15 @@ return {
             time_format = "%H:%M",
         },
 
-        -- Completion settings
+        -- Completion settings (completion is now provided via the built-in obsidian-ls LSP server)
         completion = {
-            blink = true,
             min_chars = 2,
         },
 
         -- Enable wiki-style links [[like this]]
-        preferred_link_style = "wiki",
+        link = {
+            style = "wiki",
+        },
 
         -- Open notes in current buffer
         open_notes_in = "current",
