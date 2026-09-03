@@ -41,6 +41,13 @@ return {
             desc = "Undo Stage Hunk",
         },
         {
+            "<leader>hU",
+            function()
+                require("gitsigns").reset_buffer_index()
+            end,
+            desc = "Unstage Buffer",
+        },
+        {
             "<leader>hR",
             function()
                 require("gitsigns").reset_buffer()
