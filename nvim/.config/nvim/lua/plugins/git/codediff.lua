@@ -38,7 +38,7 @@ local function load_more_history()
     local lifecycle = require("codediff.ui.lifecycle")
     local tabpage = vim.api.nvim_get_current_tabpage()
     local session = lifecycle.get_session(tabpage)
-    if not session or session.mode ~= "history" then
+    if not session or not session.panel or session.panel.name ~= "history" then
         return
     end
 
@@ -266,7 +266,7 @@ return {
                 local lifecycle = require("codediff.ui.lifecycle")
                 local tabpage = vim.api.nvim_get_current_tabpage()
                 local session = lifecycle.get_session(tabpage)
-                if not session or session.mode ~= "history" then
+                if not session or not session.panel or session.panel.name ~= "history" then
                     return
                 end
 
