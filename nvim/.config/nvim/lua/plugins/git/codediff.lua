@@ -42,7 +42,7 @@ local function load_more_history()
         return
     end
 
-    local history = lifecycle.get_explorer(tabpage)
+    local history = lifecycle.get_panel_view(tabpage)
     if not history then
         return
     end
@@ -279,7 +279,7 @@ return {
                 end
 
                 vim.keymap.set("n", "<leader>e", function()
-                    local history_obj = lifecycle.get_explorer(tabpage)
+                    local history_obj = lifecycle.get_panel_view(tabpage)
                     if history_obj then
                         require("codediff.ui.history").toggle_visibility(history_obj)
                     end
