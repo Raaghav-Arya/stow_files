@@ -10,9 +10,38 @@ local CLI_SK_FILE = "sk/cli/" .. CLI_TOOL .. ".lua"
 
 -- Module-level state for dynamic session management
 local _tool_base = nil
-local _active_session = nil -- name of the currently visible session
-local _prev_session = nil -- name of the previously visible session (for <leader>al)
+local _active_by_tab = {} -- tabpage -> name of the session visible in that tab
+local _prev_by_tab = {} -- tabpage -> name of the previously visible session in that tab (for <leader>al)
 local _kill_counter = 0 -- incremented per killed session; ensures unique renamed names
+
+local function current_tab()
+    return vim.api.nvim_get_current_tabpage()
+end
+
+-- Returns the tabpage a session's terminal window is currently showing in,
+-- or nil if it isn't open anywhere. Sidekick terminals track a single window
+-- id regardless of tab, so this is the only way to tell which tab (if any)
+-- a session is actually visible in.
+local function terminal_tab(terminal)
+    if not terminal or not terminal.win or not vim.api.nvim_win_is_valid(terminal.win) then
+        return nil
+    end
+    return vim.api.nvim_win_get_tabpage(terminal.win)
+end
+
+-- Drop tracked state for tabpages that no longer exist
+local function prune_tab_state()
+    for tab in pairs(_active_by_tab) do
+        if not vim.api.nvim_tabpage_is_valid(tab) then
+            _active_by_tab[tab] = nil
+        end
+    end
+    for tab in pairs(_prev_by_tab) do
+        if not vim.api.nvim_tabpage_is_valid(tab) then
+            _prev_by_tab[tab] = nil
+        end
+    end
+end
 
 local function get_tool_base()
     if _tool_base then
@@ -113,7 +142,10 @@ local function find_slot(i)
     return nil
 end
 
--- Enforce exclusive visibility: hide other terminals, show target
+-- Enforce exclusive visibility *within the current tab*: hide other terminals
+-- visible in this tab, show target. If the target is visible in a different
+-- tab, move it here — sidekick terminals only support one window each, so a
+-- session can't be visible in two tabs simultaneously.
 local function toggle_session(name)
     local ok, State = pcall(require, "sidekick.cli.state")
     if not ok then
@@ -121,39 +153,51 @@ local function toggle_session(name)
         return
     end
 
+    local cur_tab = current_tab()
     local states = State.get({ attached = true })
 
-    -- Check if the target session is currently visible
-    local target_visible = false
+    -- Find where (if anywhere) the target session is currently visible
+    local target_state, target_tab
     for _, s in ipairs(states) do
-        if s.tool.name == name and s.terminal and s.terminal:is_open() then
-            target_visible = true
+        if s.tool.name == name then
+            target_state = s
+            target_tab = terminal_tab(s.terminal)
             break
         end
     end
 
-    if target_visible then
-        -- Target is shown — toggle will hide it
-        _active_session = nil
+    if target_tab == cur_tab then
+        -- Visible right here — toggle will hide it
+        _active_by_tab[cur_tab] = nil
         require("sidekick.cli").toggle({ name = name, focus = true })
-    else
-        -- Track the outgoing session as prev before switching
-        if _active_session and _active_session ~= name then
-            _prev_session = _active_session
-        end
-        -- Hide all other visible terminals first (synchronous)
-        for _, s in ipairs(states) do
-            if s.tool.name ~= name and is_our_session(s.tool.name) and s.terminal and s.terminal:is_open() then
-                s.terminal:hide()
-            end
-        end
-        -- Show the target (async via State.with, runs after hides complete)
-        _active_session = name
-        require("sidekick.cli").toggle({ name = name, focus = true })
+        return
     end
+
+    if target_tab and target_state and target_state.terminal then
+        -- Visible in a different tab — move it here
+        target_state.terminal:hide()
+    end
+
+    -- Track the outgoing session (this tab's) as prev before switching
+    local outgoing = _active_by_tab[cur_tab]
+    if outgoing and outgoing ~= name then
+        _prev_by_tab[cur_tab] = outgoing
+    end
+
+    -- Hide only sessions currently visible in THIS tab first (synchronous)
+    for _, s in ipairs(states) do
+        if s.tool.name ~= name and is_our_session(s.tool.name) and terminal_tab(s.terminal) == cur_tab then
+            s.terminal:hide()
+        end
+    end
+
+    -- Show the target (async via State.with, runs after hides complete)
+    _active_by_tab[cur_tab] = name
+    require("sidekick.cli").toggle({ name = name, focus = true })
 end
 
--- Toggle all sessions: hide all if any visible, show last active if none
+-- Toggle all sessions visible in the current tab: hide if any visible here,
+-- show this tab's last active session if none
 local function toggle_all_sessions()
     local ok, State = pcall(require, "sidekick.cli.state")
     if not ok then
@@ -161,22 +205,23 @@ local function toggle_all_sessions()
         return
     end
 
+    local cur_tab = current_tab()
     local states = State.get({ attached = true })
     local any_visible = false
 
     for _, s in ipairs(states) do
-        if is_our_session(s.tool.name) and s.terminal and s.terminal:is_open() then
+        if is_our_session(s.tool.name) and terminal_tab(s.terminal) == cur_tab then
             any_visible = true
             s.terminal:hide()
         end
     end
 
     if any_visible then
-        -- Keep _active_session so the next toggle restores the same session
+        -- Keep _active_by_tab[cur_tab] so the next toggle restores the same session
     else
-        -- Show the last active session, default to primary
-        local name = _active_session or ensure_slot(1)
-        _active_session = name
+        -- Show the last active session for this tab, default to primary
+        local name = _active_by_tab[cur_tab] or ensure_slot(1)
+        _active_by_tab[cur_tab] = name
         require("sidekick.cli").toggle({ name = name, focus = true })
     end
 end
@@ -199,6 +244,7 @@ local function get_all_session_names()
 end
 
 local function navigate_session(direction)
+    local cur_tab = current_tab()
     local names = get_all_session_names()
     if #names == 0 then
         local name = ensure_slot(1)
@@ -206,8 +252,9 @@ local function navigate_session(direction)
         return
     end
     local idx = 0
+    local active = _active_by_tab[cur_tab]
     for i, name in ipairs(names) do
-        if name == _active_session then
+        if name == active then
             idx = i
             break
         end
@@ -222,19 +269,20 @@ local function navigate_session(direction)
     toggle_session(name)
 end
 
--- Returns the name of the currently visible session for send routing
+-- Returns the name of the session visible in the current tab, for send routing
 local function get_active_session_name()
-    if _active_session then
-        return _active_session
+    local cur_tab = current_tab()
+    if _active_by_tab[cur_tab] then
+        return _active_by_tab[cur_tab]
     end
-    -- Fallback: scan for any visible terminal
+    -- Fallback: scan for any terminal visible in this tab
     local ok, State = pcall(require, "sidekick.cli.state")
     if not ok then
         return nil
     end
     for _, s in ipairs(State.get({ attached = true })) do
-        if is_our_session(s.tool.name) and s.terminal and s.terminal:is_open() then
-            _active_session = s.tool.name
+        if is_our_session(s.tool.name) and terminal_tab(s.terminal) == cur_tab then
+            _active_by_tab[cur_tab] = s.tool.name
             return s.tool.name
         end
     end
@@ -264,9 +312,15 @@ local keys = {
             vim.ui.select(items, {
                 prompt = CLI_DISPLAY .. " Sessions",
                 format_item = function(s)
-                    local status = (s.terminal and s.terminal:is_open()) and " [visible]"
-                        or (s.session ~= nil) and " [attached]"
-                        or ""
+                    local status
+                    if s.terminal and s.terminal:is_open() then
+                        local tab = terminal_tab(s.terminal)
+                        status = tab and (" [visible: tab " .. vim.api.nvim_tabpage_get_number(tab) .. "]") or " [visible]"
+                    elseif s.session ~= nil then
+                        status = " [attached]"
+                    else
+                        status = ""
+                    end
                     return s.tool.name .. status
                 end,
             }, function(choice)
@@ -344,7 +398,7 @@ local keys = {
         "<leader>ad",
         function()
             require("sidekick.cli").close()
-            _active_session = nil
+            _active_by_tab[current_tab()] = nil
         end,
         desc = "Detach CLI Session",
     },
@@ -363,11 +417,11 @@ local keys = {
     {
         "<leader>al",
         function()
-            if not _prev_session then
+            local name = _prev_by_tab[current_tab()]
+            if not name then
                 vim.notify("No previous " .. CLI_DISPLAY .. " session", vim.log.levels.INFO)
                 return
             end
-            local name = _prev_session
             local n = tonumber(name:match(CLI_NUM_PATTERN))
             if n then ensure_slot(n) end
             toggle_session(name)
@@ -402,7 +456,8 @@ local keys = {
                     count = count + 1
                 end
             end
-            _active_session = nil
+            _active_by_tab = {}
+            _prev_by_tab = {}
             -- Rename each session before killing so the slot name is freed immediately
             for _, mux_name in ipairs(tmux_sessions) do
                 kill_tmux_session(mux_name)
@@ -418,7 +473,7 @@ local keys = {
     {
         "<leader>ax",
         function()
-            local name = _active_session
+            local name = _active_by_tab[current_tab()]
             if not name then
                 vim.notify("No active " .. CLI_DISPLAY .. " session", vim.log.levels.INFO)
                 return
@@ -437,7 +492,13 @@ local keys = {
                         State.detach(s)
                     end
                     cfg_tools[s.tool.name] = nil
-                    _active_session = nil
+                    -- Purge this session from every tab's tracked state
+                    for tab, n in pairs(_active_by_tab) do
+                        if n == name then _active_by_tab[tab] = nil end
+                    end
+                    for tab, n in pairs(_prev_by_tab) do
+                        if n == name then _prev_by_tab[tab] = nil end
+                    end
                     kill_tmux_session(mux_name)
                     vim.notify("Killed " .. CLI_DISPLAY .. " session: " .. name, vim.log.levels.INFO)
                     return
@@ -594,6 +655,7 @@ return {
     },
     config = function(_, opts)
     require("sidekick").setup(opts)
+    vim.api.nvim_create_autocmd("TabClosed", { callback = prune_tab_state })
     end,
   },
 }
