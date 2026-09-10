@@ -1,6 +1,7 @@
 -- Lazygit: Terminal UI for git commands
 return {
     "kdheepak/lazygit.nvim",
+    cmd = { "LazyGit", "LazyGitConfig", "LazyGitCurrentFile", "LazyGitFilter", "LazyGitFilterCurrentFile" },
     init = function()
         -- Use custom config file path
         vim.g.lazygit_use_custom_config_file_path = 1

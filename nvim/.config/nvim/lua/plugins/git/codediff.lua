@@ -263,6 +263,14 @@ return {
         -- otherwise fall through to the global <leader>e (Snacks Explorer).
         vim.api.nvim_create_autocmd("BufEnter", {
             callback = function(ev)
+                -- Bail without requiring anything if codediff hasn't been
+                -- loaded yet: requiring any codediff.* module forces lazy.nvim
+                -- to load the whole plugin, which would defeat the cmd/keys
+                -- lazy-loading above by firing on the very first BufEnter.
+                if not package.loaded["codediff.ui.lifecycle"] then
+                    return
+                end
+
                 local lifecycle = require("codediff.ui.lifecycle")
                 local tabpage = vim.api.nvim_get_current_tabpage()
                 local session = lifecycle.get_session(tabpage)
