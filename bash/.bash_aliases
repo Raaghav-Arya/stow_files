@@ -8,6 +8,10 @@ alias bat="batcat"
 alias cat="bat -P"
 alias less="bat"
 
+# Less Used
+alias update-claude="npm install -g ti-claude-code-install --registry https://artifactory.itg.ti.com/artifactory/api/npm/npm-release/"
+alias disk-usage="ncdu"
+
 # Makes a new dir and cd to it
 mkcd() { mkdir -p "$@" && cd "$@" || exit; }
 # Starts interactive rebase for the last N commits

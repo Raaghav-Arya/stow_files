@@ -177,3 +177,9 @@ alias cargo="rustup.cargo"
 
 . "$HOME/.local/bin/env"
 
+
+# Added by ti-claude-code-install
+export PATH="$HOME/.local/npm-global/bin:$PATH"
+
+# Added by ti-pi-harness-install
+export NODE_EXTRA_CA_CERTS="$HOME/.local/certs/ti-ca-bundle.pem"
