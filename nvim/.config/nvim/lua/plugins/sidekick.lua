@@ -80,7 +80,9 @@ local function ensure_extra_slot(tool_name, n)
     local name = tool_name .. "_" .. n
     local tools = require("sidekick.config").cli.tools
     if not tools[name] then
-        local base_config = tools[tool_name]
+        -- Use get_tool() to get the fully resolved config (includes cmd from sk/cli/{tool}.lua)
+        local tool_obj = require("sidekick.config").get_tool(tool_name)
+        local base_config = tool_obj.config
         if base_config then
             -- Deepcopy preserves cmd, env, keys, format, etc.
             -- Strip is_proc to avoid tmux process-discovery conflicts (same as make_tool())
@@ -344,7 +346,8 @@ local keys = {
             for _, s in ipairs(states) do
                 local name = s.tool.name
                 -- Only bare tool names (no _N suffix), excluding the default CLI_TOOL
-                if name ~= CLI_TOOL and not name:match("^[%a_]+_%d+$") then
+                -- Also exclude tools that already have a running session (s.session exists)
+                if name ~= CLI_TOOL and not name:match("^[%a_]+_%d+$") and not s.session then
                     items[#items + 1] = s
                 end
             end
@@ -578,7 +581,7 @@ local keys = {
     },
 }
 
-for i = 1, 5 do
+for i = 1, 9 do
     keys[#keys + 1] = {
         "<leader>a" .. i,
         function()
@@ -605,6 +608,15 @@ return {
           keys = {
             prompt = false, -- pass <C-p> through to Claude Code for navigation
             buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
+          },
+        },
+        tools = {
+          omp = {
+            cmd = { "omp" },
+            is_proc = "\\<omp\\>",
+            url = "https://github.com/omniscient-dev/omp",
+            continue = { "-c", "--continue" },
+            resume = { "-r", "--resume" },
           },
         },
       },
