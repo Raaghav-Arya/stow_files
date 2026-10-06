@@ -26,3 +26,5 @@
     dark = true
     side-by-side = true
 
+[alias]
+	child = "!f() { h=$(git rev-parse \"$1\") || return 1; n=${2:-1}; list=\"\"; cur=\"$h\"; i=0; while [ \"$i\" -lt \"$n\" ]; do child=$(git rev-list --all --children | grep \"^$cur \" | cut -d\" \" -f2 | head -n1); [ -z \"$child\" ] && break; list=\"$list $child\"; cur=\"$child\"; i=$((i+1)); done; [ -z \"$list\" ] && return 0; git log --oneline --no-walk $list; }; f"
