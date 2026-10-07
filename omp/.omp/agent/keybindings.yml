@@ -1,0 +1,18 @@
+tui.select.up:
+  - up
+  - ctrl+p
+  - k
+tui.select.down:
+  - down
+  - ctrl+n
+  - j
+app.thinking.cycle:
+  []
+app.model.cycleForward:
+  []
+app.session.togglePath:
+  []
+app.plan.toggle:
+  - shift+tab
+app.session.toggleNamedFilter:
+  []

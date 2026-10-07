@@ -1,0 +1,172 @@
+setupVersion: 2
+enabledProviders:
+  - litellm
+disabledProviders:
+  - local
+  - snowflake
+  - anthropic
+  - openai
+  - google
+  - google-vertex
+  - azure
+  - openrouter
+  - together
+  - fireworks
+  - cohere
+  - mistral
+  - groq
+  - deepseek
+  - nvidia
+  - meta
+  - xai
+  - zai
+  - moonshotai
+  - kimi
+  - minimax
+  - cerebras
+  - baseten
+  - huggingface
+  - github-copilot
+  - opencode
+  - codex
+  - vercel
+  - cloudflare
+  - radius
+  - ant-ling
+  - qwen
+  - xiaomi
+  - kilo
+  - vercel-ai-gateway
+  - cloudflare-ai-gateway
+  - zenmux
+  - opencode-zen
+  - opencode-go
+  - yolo-auto
+  - tavily
+  - kagi
+  - exa
+  - parallel
+  - typesafe
+  - ollama
+  - ollama-cloud
+  - lm-studio
+  - llama.cpp
+  - vllm
+  - gmi-cloud
+  - stencil
+  - singularityapi-dev
+  - singularityapi-tech
+  - openai-codex
+  - zai
+  - zai-coding-plan
+  - kimi-code
+  - github-copilot
+  - cursor
+  - devin
+  - google-antigravity
+  - google-gemini-cli
+  - openai-codex-device
+  - xai
+  - xai-oauth
+  - gitlab-duo
+  - gitlab-duo-agent
+  - alibaba-coding-plan
+  - alibaba-token-plan
+  - aiand
+  - abliteration
+  - zhipu-coding-plan
+  - umans
+  - qwen-portal
+  - sakana
+  - minimax-code
+  - minimax-code-cn
+  - xiaomi
+  - xiaomi-token-plan-sgp
+  - xiaomi-token-plan-ams
+  - xiaomi-token-plan-cn
+  - firepass
+  - cline-pass
+  - factory-droid
+  - commandcode
+  - charm-hyper
+  - deepseek
+  - stepfun
+  - muse-code
+  - meta
+  - moonshot
+  - cerebras
+  - baseten
+  - helmcode
+  - fireworks
+  - together
+  - novita
+  - deepinfra
+  - perplexity
+  - qianfan
+  - venice
+  - siliconflow
+  - siliconflow-cn
+  - synthetic
+  - nanogpt
+  - wafer-serverless
+  - coreweave
+  - aimlapi
+  - amazon-bedrock
+  - bedrock-mantle
+  - minimax-cn
+  - stt
+  - tts
+  - web
+modelPresets:
+  sonnet: ti-litellm/claude-sonnet-5
+  haiku: ti-litellm/claude-haiku-4-5
+  nemotron-ultra: ti-litellm/nvidia/Nemotron-3-Ultra
+  nemotron-super: ti-litellm/nvidia/nemotron-3-super
+  inkling: ti-litellm/thinkingmachines/Inkling
+  glimmer: ti-litellm/meta-models/Muse-Glimmer-30B
+  gpt-oss: ti-litellm/openai/gpt-oss-120b
+  gemma: ti-litellm/google/gemma-4-26B-A4B-it
+  llama: ti-litellm/meta-llama/Llama-3.3-70B-Instruct
+modelProviderOrder:
+  - litellm
+modelRoles:
+  default: ti-litellm/nvidia/Nemotron-3-Ultra:high
+extensions:
+  - /home/a0507112/.omp/agent/extensions/ti-litellm-provider.ts
+  - /home/a0507112/.omp/agent/extensions/backslash-enter-newline.ts
+symbolPreset: unicode
+colorBlindMode: false
+composer:
+  shape: band
+tui:
+  reactions: true
+  codexResetFireworks: false
+  vimMode: false
+display:
+  cacheMissMarker: false
+skillful: true
+includeWorkspaceTree: false
+magicKeywords:
+  jevify: true
+compaction:
+  enabled: false
+autolearn:
+  enabled: false
+  autoContinue: false
+plan:
+  defaultOnStartup: false
+commands:
+  enableOpencodeProject: false
+statusLine:
+  preset: default
+web_search:
+  enabled: false
+extendedContext: true
+hideThinkingBlock: true
+browser:
+  tern: false
+disabledExtensions:
+  []
+edit:
+  mode: hashline
+interruptMode: immediate

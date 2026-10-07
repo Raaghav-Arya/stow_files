@@ -118,6 +118,10 @@ if [ -f ~/.claude/bash_claude_env ]; then
     . ~/.claude/bash_claude_env
 fi
 
+if [ -f ~/.omp/agent/env.sh ]; then
+    . ~/.omp/agent/env.sh
+fi
+
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
