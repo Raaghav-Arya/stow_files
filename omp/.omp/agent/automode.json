@@ -1,0 +1,14 @@
+{
+  "autoMode": {
+    "enabled": true,
+    "classifierModel": "ti-litellm/google/gemma-4-26B-A4B-it",
+    "classifyReadOnlyTools": true,
+    "allowInsideWorkingDirectory": false,
+    "classifierTimeoutMs": 20000,
+    "deniedPaths": ["~/.ssh/**", "**/.env", "**/.env.*", "~/.aws/**", "~/.gnupg/**"]
+  },
+  "permissions": {
+    "deny": ["bash(rm -rf *)", "bash(sudo *)"],
+    "allow": ["bash(git status*)", "bash(git diff*)", "bash(git log*)", "bash(ls*)"]
+  }
+}

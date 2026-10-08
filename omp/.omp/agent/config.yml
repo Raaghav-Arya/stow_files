@@ -118,7 +118,7 @@ disabledProviders:
   - tts
   - web
 modelPresets:
-  sonnet: ti-litellm/claude-sonnet-5
+  sonnet: ti-litellm/claude-sonnet-5-5
   haiku: ti-litellm/claude-haiku-4-5
   nemotron-ultra: ti-litellm/nvidia/Nemotron-3-Ultra
   nemotron-super: ti-litellm/nvidia/nemotron-3-super
@@ -131,6 +131,11 @@ modelProviderOrder:
   - litellm
 modelRoles:
   default: ti-litellm/nvidia/Nemotron-3-Ultra:high
+  plan: ti-litellm/nvidia/Nemotron-3-Ultra:high
+  advisor: ti-litellm/claude-sonnet-5-5:medium
+  commit: ti-litellm/google/gemma-4-26B-A4B-it
+  slow: ti-litellm/claude-sonnet-5-5:high
+  task: ti-litellm/nvidia/Nemotron-3-Ultra
 extensions:
   - /home/a0507112/.omp/agent/extensions/ti-litellm-provider.ts
   - /home/a0507112/.omp/agent/extensions/backslash-enter-newline.ts

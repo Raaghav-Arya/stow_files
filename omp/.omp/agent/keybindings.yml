@@ -6,6 +6,12 @@ tui.select.down:
   - down
   - ctrl+n
   - j
+tui.select.pageUp:
+  - pageUp
+  - ctrl+u
+tui.select.pageDown:
+  - pageDown
+  - ctrl+d
 app.thinking.cycle:
   []
 app.model.cycleForward:

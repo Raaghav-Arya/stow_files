@@ -351,7 +351,7 @@ export default function (omp: ExtensionAPI) {
     api: "anthropic-messages",
     headers: { "x-litellm-team-id": teamId() },
     models: [
-      { id: "claude-sonnet-5",       name: "Claude Sonnet 5 (1M)",  reasoning: true,  input: ["text", "image"], contextWindow: 1000000, maxTokens: 128000, cost: { input: 0.0000022, output: 0.000011, cacheRead: 0, cacheWrite: 0 } },
+      { id: "claude-sonnet-5-5",       name: "Claude Sonnet 5.5(1M)",  reasoning: true,  input: ["text", "image"], contextWindow: 1000000, maxTokens: 128000, cost: { input: 0.0000022, output: 0.000011, cacheRead: 0, cacheWrite: 0 } },
       { id: "claude-haiku-4-5",      name: "Claude Haiku 4.5",      reasoning: true,  input: ["text", "image"], contextWindow: 200000,  maxTokens: 64000,  cost: { input: 0.0000011, output: 0.0000055, cacheRead: 0, cacheWrite: 0 } },
       { id: "nvidia/Nemotron-3-Ultra", name: "Nemotron 3 Ultra",  reasoning: true, input: ["text"],          contextWindow: 1000000, maxTokens: 32768, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
       { id: "nvidia/nemotron-3-super", name: "Nemotron 3 Super",    reasoning: false, input: ["text"],          contextWindow: 262144,  maxTokens: 32768, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },

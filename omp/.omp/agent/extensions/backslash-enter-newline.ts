@@ -1,62 +1,28 @@
-import { CustomEditor } from "@oh-my-pi/pi-tui/prompt/custom-editor";
-import type { TUI } from "@oh-my-pi/pi-tui";
-import type { EditorTheme } from "@oh-my-pi/pi-tui/components/editor";
-import type { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
+import { matchesKey } from "@oh-my-pi/pi-tui";
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
 
 /**
- * Custom editor that adds backslash+Enter → newline behavior (like pi-cli, Claude Code).
- * When user types `\` followed by Enter, it inserts a newline instead of submitting.
+ * `\` + Enter inserts a newline instead of submitting.
+ * Uses a terminal input listener rather than replacing the editor, so the
+ * built-in editor (and the user's keybindings) stay intact.
  */
-class BackslashEnterEditor extends CustomEditor {
-  constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
-    super(tui, theme, keybindings);
-  }
-
-  override handleInput(data: string): void {
-    // Check if this is a plain Enter key (submit)
-    const isEnter = data === "\n" || data === "\r";
-
-    // Check if the character before cursor is a backslash
-    const currentLine = this.getLines()[this.getCursor().line] ?? "";
-    const cursorCol = this.getCursor().col;
-    const hasBackslashBeforeCursor = cursorCol > 0 && currentLine[cursorCol - 1] === "\\";
-
-    if (isEnter && hasBackslashBeforeCursor && !this.disableSubmit) {
-      // Remove the backslash and insert a newline instead of submitting
-      // Using public APIs: deleteBeforeCursor(1) removes char before cursor
-      // insertText("\n") inserts a newline at cursor position
-      this.deleteBeforeCursor(1);
-      this.insertText("\n");
-      return;
-    }
-
-    // Fall through to default handling
-    super.handleInput(data);
-  }
-}
-
-/**
- * Factory function for the custom editor component.
- */
-function createBackslashEnterEditor(
-  tui: TUI,
-  theme: EditorTheme,
-  keybindings: KeybindingsManager
-): BackslashEnterEditor {
-  return new BackslashEnterEditor(tui, theme, keybindings);
-}
-
 export default function (omp: ExtensionAPI) {
-  // Register the custom editor component when a session starts
+  let unsubscribe: (() => void) | undefined;
+
   omp.on("session_start", async (_event: unknown, ctx: ExtensionContext) => {
-    if (ctx.hasUI) {
-      ctx.ui.setEditorComponent(createBackslashEnterEditor);
-    }
+    if (!ctx.hasUI) return;
+    unsubscribe?.();
+    unsubscribe = ctx.ui.onTerminalInput((data) => {
+      if (!matchesKey(data, "enter")) return undefined;
+      const text = ctx.ui.getEditorText();
+      if (!text.endsWith("\\")) return undefined;
+      ctx.ui.setEditorText(`${text.slice(0, -1)}\n`);
+      return { consume: true };
+    });
   });
 
-  // Clean up on session shutdown
   omp.on("session_shutdown", async () => {
-    // The editor component will be automatically cleaned up when the session ends
+    unsubscribe?.();
+    unsubscribe = undefined;
   });
 }
