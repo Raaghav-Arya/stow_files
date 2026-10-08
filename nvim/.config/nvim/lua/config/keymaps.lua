@@ -84,3 +84,14 @@ vim.keymap.set("v", "<leader>by", function()
 end, { noremap = true, desc = "Yank file path with selection range" })
 
 
+-- Swap <leader>e and <leader>E for Snacks Explorer
+-- <leader>e now opens in cwd (was <leader>E)
+-- <leader>E now opens in root dir (was <leader>e)
+vim.keymap.set("n", "<leader>e", function()
+  Snacks.explorer()
+end, { desc = "Explorer Snacks (cwd)" })
+vim.keymap.set("n", "<leader>E", function()
+  Snacks.explorer({ cwd = LazyVim.root() })
+end, { desc = "Explorer Snacks (root dir)" })
+
+
