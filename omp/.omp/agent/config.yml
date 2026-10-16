@@ -57,16 +57,13 @@ disabledProviders:
   - singularityapi-dev
   - singularityapi-tech
   - openai-codex
-  - zai
   - zai-coding-plan
   - kimi-code
-  - github-copilot
   - cursor
   - devin
   - google-antigravity
   - google-gemini-cli
   - openai-codex-device
-  - xai
   - xai-oauth
   - gitlab-duo
   - gitlab-duo-agent
@@ -80,7 +77,6 @@ disabledProviders:
   - sakana
   - minimax-code
   - minimax-code-cn
-  - xiaomi
   - xiaomi-token-plan-sgp
   - xiaomi-token-plan-ams
   - xiaomi-token-plan-cn
@@ -89,16 +85,10 @@ disabledProviders:
   - factory-droid
   - commandcode
   - charm-hyper
-  - deepseek
   - stepfun
   - muse-code
-  - meta
   - moonshot
-  - cerebras
-  - baseten
   - helmcode
-  - fireworks
-  - together
   - novita
   - deepinfra
   - perplexity
@@ -117,6 +107,7 @@ disabledProviders:
   - stt
   - tts
   - web
+  - claude
 modelPresets:
   sonnet: ti-litellm/claude-sonnet-5-5
   haiku: ti-litellm/claude-haiku-4-5
@@ -139,7 +130,8 @@ modelRoles:
 extensions:
   - /home/a0507112/.omp/agent/extensions/ti-litellm-provider.ts
   - /home/a0507112/.omp/agent/extensions/backslash-enter-newline.ts
-symbolPreset: unicode
+  - /home/a0507112/.omp/agent/extensions/stash-prompt.ts
+  - /home/a0507112/.omp/extensions/plan-adversarial-review/index.ts
 colorBlindMode: false
 composer:
   shape: band
@@ -149,6 +141,8 @@ tui:
   vimMode: false
 display:
   cacheMissMarker: false
+  smoothStreaming: true
+  hideToolActivity: false
 skillful: true
 includeWorkspaceTree: false
 magicKeywords:
@@ -169,9 +163,32 @@ web_search:
 extendedContext: true
 hideThinkingBlock: true
 browser:
-  tern: false
+  tern: true
+  enabled: false
 disabledExtensions:
-  []
+  - skill:skill-creator
 edit:
   mode: hashline
 interruptMode: immediate
+terminal:
+  showProgress: false
+prewalk:
+  enabled: false
+steeringMode: all
+doubleEscapeAction: rewind
+symbolPreset: nerd
+spelling:
+  autocomplete: smollm
+ttsr:
+  enabled: true
+ida:
+  enabled: false
+dev:
+  autoqa: false
+  autoqaConsent: denied
+telemetry:
+  otlpExportEnabled: false
+startup:
+  checkUpdate: false
+marketplace:
+  autoUpdate: "off"

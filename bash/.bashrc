@@ -2,6 +2,11 @@
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
+# omp env vars: load before the interactive guard so headless shells get them
+if [ -f ~/.omp/agent/env.sh ]; then
+    . ~/.omp/agent/env.sh
+fi
+
 # If not running interactively, don't do anything
 case $- in
     *i*) ;;
@@ -118,9 +123,6 @@ if [ -f ~/.claude/bash_claude_env ]; then
     . ~/.claude/bash_claude_env
 fi
 
-if [ -f ~/.omp/agent/env.sh ]; then
-    . ~/.omp/agent/env.sh
-fi
 
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile

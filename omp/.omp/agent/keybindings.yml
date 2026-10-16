@@ -1,17 +1,20 @@
 tui.select.up:
   - up
   - ctrl+p
-  - k
 tui.select.down:
   - down
   - ctrl+n
-  - j
 tui.select.pageUp:
   - pageUp
   - ctrl+u
 tui.select.pageDown:
   - pageDown
   - ctrl+d
+tui.input.tab:
+  - tab
+  - ctrl+y
+tui.editor.yank:
+  []
 app.thinking.cycle:
   []
 app.model.cycleForward:
@@ -21,4 +24,8 @@ app.session.togglePath:
 app.plan.toggle:
   - shift+tab
 app.session.toggleNamedFilter:
+  []
+app.session.observe:
+  []
+app.session.toggleSort:
   []

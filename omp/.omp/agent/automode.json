@@ -4,7 +4,7 @@
     "classifierModel": "ti-litellm/google/gemma-4-26B-A4B-it",
     "classifyReadOnlyTools": true,
     "allowInsideWorkingDirectory": false,
-    "classifierTimeoutMs": 20000,
+    "classifierTimeoutMs": 60000,
     "deniedPaths": ["~/.ssh/**", "**/.env", "**/.env.*", "~/.aws/**", "~/.gnupg/**"]
   },
   "permissions": {
