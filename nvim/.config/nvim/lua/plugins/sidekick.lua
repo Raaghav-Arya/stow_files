@@ -345,15 +345,15 @@ local keys = {
             local items = {}
             for _, s in ipairs(states) do
                 local name = s.tool.name
-                -- Only bare tool names (no _N suffix), excluding the default CLI_TOOL
+                -- Only bare tool names (no _N suffix), including the default CLI_TOOL
                 -- Also exclude tools that already have a running session (s.session exists)
-                if name ~= CLI_TOOL and not name:match("^[%a_]+_%d+$") and not s.session then
+                if not name:match("^[%a_]+_%d+$") and not s.session then
                     items[#items + 1] = s
                 end
             end
 
             if #items == 0 then
-                vim.notify("No other installed CLI tools found", vim.log.levels.INFO)
+                vim.notify("No installed CLI tools found", vim.log.levels.INFO)
                 return
             end
 
@@ -378,7 +378,7 @@ local keys = {
                 end
             end)
         end,
-        desc = "Open Other CLI Tool",
+        desc = "Open CLI Tool",
     },
     {
         "<leader>an",
@@ -592,6 +592,12 @@ for i = 1, 9 do
     }
 end
 
+local function tmux_nav(cmd)
+    return function()
+        vim.schedule(function() vim.cmd(cmd) end)
+    end
+end
+
 return {
   {
     "folke/sidekick.nvim",
@@ -608,11 +614,21 @@ return {
           keys = {
             prompt = false, -- pass <C-p> through to Claude Code for navigation
             buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
+            nav_left  = { "<c-h>", tmux_nav("NvimTmuxNavigateLeft"),  mode = "t", desc = "navigate left (tmux-aware)" },
+            nav_down  = { "<c-j>", tmux_nav("NvimTmuxNavigateDown"),  mode = "t", desc = "navigate down (tmux-aware)" },
+            nav_up    = { "<c-k>", tmux_nav("NvimTmuxNavigateUp"),    mode = "t", desc = "navigate up (tmux-aware)" },
+            nav_right = { "<c-l>", tmux_nav("NvimTmuxNavigateRight"), mode = "t", desc = "navigate right (tmux-aware)" },
           },
         },
         tools = {
           omp = {
             cmd = { "omp" },
+            -- tmux runs this without an interactive shell, so ~/.bashrc is not sourced
+            env = {
+              XDG_DATA_HOME = vim.env.HOME .. "/.local/share",
+              XDG_STATE_HOME = vim.env.HOME .. "/.local/state",
+              XDG_CACHE_HOME = vim.env.HOME .. "/.cache",
+            },
             is_proc = "\\<omp\\>",
             url = "https://github.com/omniscient-dev/omp",
             continue = { "-c", "--continue" },
