@@ -49,6 +49,11 @@ return {
         -- Open notes in current buffer
         open_notes_in = "current",
 
+        -- Use snacks picker for all Obsidian pickers
+        picker = {
+            name = "snacks.picker",
+        },
+
         -- Callbacks for setting up keymaps when entering a note
         callbacks = {
             enter_note = function(note)
