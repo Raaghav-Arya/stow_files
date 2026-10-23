@@ -1,0 +1,11 @@
+{
+  "lastChangelogVersion": "1.4.0",
+  "deviceId": "5d6847c2-ad08-4c02-b838-0137e0908987",
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-6.1-sol",
+  "defaultThinkingLevel": "medium",
+  "enabledModels": [
+    "openai/gpt-[6-9]*"
+  ],
+  "tuiMode": "fullscreen"
+}
