@@ -49,6 +49,9 @@ export class TranscriptNavigationEditor extends CustomEditor {
       return;
     }
     if (isKeyRelease(data)) return;
+    // Registered extension shortcuts (e.g. Alt+A Agents Hub) must remain usable
+    // in NAV mode. Unclaimed input is still consumed to protect the draft.
+    if (this.navigation && this.onExtensionShortcut?.(data)) return;
 
     if (matchesKey(data, "ctrl+q")) {
       this.setNavigation(!this.navigation, this.navigation);
