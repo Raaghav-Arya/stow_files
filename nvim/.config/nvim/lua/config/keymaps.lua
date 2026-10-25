@@ -4,10 +4,10 @@
 local opts = { noremap = true, silent = true }
 
 -- Center cursor when scrolling
-vim.keymap.set({"n", "i"}, "<C-d>", "<C-d>zz0", opts)
-vim.keymap.set({"n", "i"}, "<C-u>", "<C-u>zz0", opts)
-vim.keymap.set({"n", "i"}, "<C-f>", "<C-f>zz0", opts)
-vim.keymap.set({"n", "i"}, "<C-b>", "<C-b>zz0", opts)
+vim.keymap.set({"n"}, "<C-d>", "<C-d>zz0", opts)
+vim.keymap.set({"n"}, "<C-u>", "<C-u>zz0", opts)
+vim.keymap.set({"n"}, "<C-f>", "<C-f>zz0", opts)
+vim.keymap.set({"n"}, "<C-b>", "<C-b>zz0", opts)
 
 -- Delete without yanking (don't lose clipboard)
 vim.keymap.set({ "n", "v" }, "d", '"_d', { noremap = true, desc = "Delete without yanking" })
