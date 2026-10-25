@@ -132,6 +132,7 @@ end
 return {
     "esmuellert/codediff.nvim",
     dependencies = { "MunifTanjim/nui.nvim" },
+    build = "bash build_no_openmp.sh", -- build without OpenMP to avoid GLIBC_2.38/libgomp conflict
     cmd = "CodeDiff",
     keys = {
         { "<leader>gcc", "<cmd>CodeDiff<cr>", desc = "Open CodeDiff (working tree)" },
