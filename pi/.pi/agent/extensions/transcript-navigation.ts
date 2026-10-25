@@ -1,5 +1,6 @@
 /** Fullscreen transcript navigation. Ctrl+Q toggles; i returns to live input. */
 import { CustomEditor, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { PickerAcceptanceInput } from "./picker-accept/input.ts";
 import {
   isKeyRelease,
   matchesKey,
@@ -24,6 +25,7 @@ function isFullscreen(tui: TUI): tui is TuiAltScreen {
 export class TranscriptNavigationEditor extends CustomEditor {
   private navigation = false;
   private pendingG = false;
+  private readonly pickerAcceptance = new PickerAcceptanceInput();
   private readonly navigationTui: ConstructorParameters<typeof CustomEditor>[0];
 
   constructor(...args: ConstructorParameters<typeof CustomEditor>) {
@@ -41,11 +43,16 @@ export class TranscriptNavigationEditor extends CustomEditor {
     this.navigationTui.requestRender();
   }
 
+  private handleEditorInput(data: string): void {
+    const mapped = this.pickerAcceptance.transform(data, this);
+    if (mapped !== undefined) super.handleInput(mapped);
+  }
+
   handleInput(data: string): void {
     const tui = this.navigationTui;
-    // Regular mode must retain the unmodified editor behaviour.
+    // Compose completion acceptance with the stock regular-mode editor.
     if (!isFullscreen(tui)) {
-      super.handleInput(data);
+      this.handleEditorInput(data);
       return;
     }
     if (isKeyRelease(data)) return;
@@ -58,7 +65,7 @@ export class TranscriptNavigationEditor extends CustomEditor {
       return;
     }
     if (!this.navigation) {
-      super.handleInput(data);
+      this.handleEditorInput(data);
       return;
     }
 
