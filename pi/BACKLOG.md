@@ -220,6 +220,40 @@ Source-review findings/provenance: `pi/research/PI-003-subagents.md`.
 
 ### Still required — foundational plumbing
 
+**Additional user feedback / requirements:**
+- **Explicitly investigate the `pi-subagents` extension.** Before implementing
+  the next subagent slice, identify its actual repository and inspect its source,
+  not just its README. Assess its nested delegation, agent/turn limits, completion
+  and input-needed notifications, lifecycle, messaging and policy inheritance
+  against this ticket. Record a pinned revision, license, dependencies,
+  maintenance/adoption evidence, security/API compatibility findings and concrete
+  reuse decisions in `research/PI-003-subagents.md`. Reuse suitable reviewed code
+  or functionality where practical under the shared policy; do not implicitly
+  install or execute it or assume its behavior before inspection.
+- **Allow nested delegation.** Child agents must be able to launch their own
+  subagents through explicitly supported, policy-aware capability inheritance.
+  Do not impose a blanket prohibition on nested agents. Keep configurable depth,
+  ownership, shared admission/budget limits and descendant cleanup; these guardrails
+  must support useful nested deployments rather than effectively disabling them.
+- **Increase agent capacity.** Raise the current agent-count defaults to support
+  larger deployments, including nested agents. Choose and document practical
+  per-parent and whole-tree limits after inspecting current defaults and resource
+  costs; the user has not specified an exact agent count.
+- **Increase model-turn allowance substantially.** Target a configurable limit of
+  **1,000 model turns per agent**, subject to confirming the actual counter semantics
+  and resource implications. The user suggested 1,000 as a reasonable target, not
+  an unchangeable value. Distinguish model turns from tool calls, messages and
+  lifetime/time limits; surface approaching/exhausted limits clearly.
+- **Event-driven parent notification.** Give the main agent a supported mechanism
+  to learn that a subagent completed, failed, or needs input without repeated
+  list/read polling or shell sleeps. Completion/failure should be lifecycle events;
+  input requests should be explicit, addressed events rather than guessed from
+  prose. Provide bounded, configurable delivery/wakeup when the parent is idle
+  and queued delivery at a supported boundary when busy. Retain passive delivery
+  as an option, but passive next-turn context alone does not satisfy this requested
+  active-notification workflow. Preserve provenance, cancellation/session ownership,
+  durable or visibly failed delivery, batching and feedback-loop/cost limits.
+
 - [ ] **Separate interrupt from close.** Add an interrupt/abort operation that
   stops current work but leaves the agent connected and idle, preserving context.
   Define queued-message handling explicitly. Keep close/terminate as a separate,
@@ -251,6 +285,15 @@ Source-review findings/provenance: `pi/research/PI-003-subagents.md`.
   addressing/message and observation contracts for optional orchestrators, with
   request correlation, ownership, errors and lifecycle cleanup; do not require
   consumers to create extra managers and bypass the registry/budgets.
+
+### Additional resilience feedback (new)
+
+- [ ] A provider/model/request failure must not immediately close a healthy child
+  process. Record recoverable failed work and keep transport connected where safe,
+  so the user can deliberately retry/continue with preserved context and budgets.
+  Do not use blind retry loops or reset task budgets; make uncertain request
+  outcomes explicit. Fatal child-process, protocol, or required-persistence failures
+  still require cleanup and must not be presented as recoverable live sessions.
 
 ### Remaining UX and validation
 
@@ -787,7 +830,7 @@ those features are implemented.
 
 ## PI-013 — Plan mode: explore, propose, review, then execute
 
-**Status:** done — free-switch/file-artifact workflow implemented; 16 unit + 5 hub tests, typecheck and offline RPC checks pass. Follow-up: reload/manual terminal acceptance | **Size:** medium
+**Status:** base workflow done — free-switch/file-artifact workflow implemented; 16 unit + 5 hub tests, typecheck and offline RPC checks pass. Full-plan proposal/review follow-up proposed below; baseline reload/manual terminal acceptance remains separate | **Size:** medium
 
 **Implementation:** `extensions/plan-mode/`, live link installed. `/plan`
 enter/show/edit/approve/cancel/leave; Shift+Tab freely switches plan/normal.
@@ -822,6 +865,36 @@ plugin was installed. Reviewed code reuse is allowed under the shared policy.
   snapshots/metadata but is not the sole plan artifact.
 - Shift+Tab replaces thinking-level cycling with user agreement; thinking-level
   cycling is now Ctrl+Alt+T. Busy/child admission checks remain operational guards.
+
+**Follow-up request — full-plan proposal and accept/reject review (not yet implemented):**
+- `/plan propose` should present the **entire current plan file**, like Claude
+  Code's plan review, not just a path, excerpt or model-generated summary. Use a
+  scrollable Markdown review so long plans remain fully accessible alongside
+  clearly labelled actions and the plan path/revision.
+- Offer **Accept plan** and **Reject with feedback**, plus a cancel/back path
+  that does not imply either decision. Accepting explicitly approves the exact
+  reviewed revision and enters normal/build mode. It must not merely dismiss the
+  proposal while leaving the planning restrictions active.
+- Rejecting collects feedback in a dedicated multiline editor, preserves the
+  plan artifact and feedback for revision, and remains in plan mode. Rejection
+  and cancellation must never be reported as approval. Cancelling feedback entry
+  must not fabricate feedback or submit a rejection accidentally.
+- Read the actual file for review and revalidate its content/revision before
+  acceptance. An external edit, new revision, branch/session change, or stale
+  dialog must invalidate acceptance and require review of the current plan.
+- Preserve free Shift+Tab plan/build switching: it remains distinct from the
+  explicit proposal decision and does not approve the plan. Accepting a proposal
+  authorizes that revision, not arbitrary future actions; entering build mode
+  alone does not automatically start a model turn.
+- Coordinate with **PI-017**: planning uses a configured Sol medium/high profile;
+  accepting the plan activates the configured Luna high build profile. Keep
+  provider/model/reasoning resolution in the shared routing layer rather than
+  hard-coding model IDs in the review UI. Report unavailable/invalid profiles
+  explicitly rather than silently using a different model.
+- Test full long-file visibility, explicit accept/build transition, rejection
+  with multiline feedback, cancel/back, stale/external edits, lifecycle changes,
+  model-handoff failures and headless behavior without fabricated approval.
+- This is a new requested follow-up, not approval to execute an existing plan.
 
 **Acceptance:**
 - Explicit plan/execute state with clear command controls and PI-012 statusline
@@ -1009,8 +1082,9 @@ not an asserted popularity ranking or a preapproved implementation choice.
 throughout Pi. Use higher-capability models where needed and cheaper models for
 routine work, without repeatedly selecting concrete models manually.
 
-**User examples (illustrative mappings, not hard-coded defaults):**
-- `intensive` → `sol-high` for investigating/planning a task.
+**User examples (configurable mappings, not hard-coded model IDs):**
+- `intensive` / planning → Sol with `medium` or `high` reasoning for
+  investigating/planning a task (for example, `sol-medium` / `sol-high`).
 - `build` → `luna-high` for implementing the reviewed plan at lower cost.
 - `small` → `luna-low` for lightweight tasks such as preparing commits.
 - `general` → a user-selected everyday/default model configuration.
@@ -1041,10 +1115,19 @@ routine work, without repeatedly selecting concrete models manually.
 - Agents Hub/subagent definitions and launch requests can select a label; resolve
   it consistently and report the actual provider/model/reasoning configuration.
   Explicit concrete-model overrides remain available; define their precedence.
-- Plan mode can use `intensive` while planning, then switch to `build` for
-  implementation when the user leaves planning. Configure this routing rather
-  than hard-coding it. Merely selecting a model or switching modes must not
-  start a turn, grant tool permissions, or mark a plan approved.
+- Bind planning/build modes to configurable model profiles: the user's requested
+  workflow is **Sol medium/high for planning** and **Luna high for build**.
+  Resolve actual provider/model IDs against installed configuration; these names
+  describe the requested profiles, not guaranteed provider identifiers.
+- Integrate with PI-013's full-plan proposal review: **Accept plan** explicitly
+  approves the reviewed revision, enters build mode and activates its Luna high
+  profile; **Reject with feedback** remains in planning with the Sol profile.
+  Model/profile activation failures must be visible, not a silent handoff to an
+  unintended model. Define consistent transition/rollback behavior.
+- Free manual mode switching should also apply the configured mode profile,
+  subject to documented manual-override rules. Merely selecting a model or
+  switching modes must not start a turn, grant tool permissions, or mark a plan
+  approved. Approval is a separate explicit decision in the proposal workflow.
 - Lightweight workflows such as commit preparation can explicitly select
   `small`. Model routing does not authorize a commit/push or any other side
   effect; existing user instructions and permission policies still apply.
