@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": [
+    "opencode-vim-navigation@0.1.3"
+  ],
+  "theme": {
+    "name": "opencode"
+  },
+  "diffs": {
+    "wrap": "word"
+  },
+  "session": {
+    "sidebar": "hide",
+    "scrollbar": false,
+    "thinking": "show"
+  },
+  "animations": true,
+  "tabs": {
+    "mode": "auto"
+  }
+}
