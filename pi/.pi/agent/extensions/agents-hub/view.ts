@@ -4,17 +4,41 @@ import { isKeyRelease, Markdown, matchesKey, truncateToWidth, visibleWidth, wrap
 import type { ActivityEntry } from "./activity.ts";
 import type { AgentManager, AgentRecord, AgentState } from "./manager.ts";
 
-export type HubAction = { type: "close" | "new" | "message" | "follow-up" | "stop"; id?: string };
+export type HubAction = { type: "close" | "new" | "message" | "follow-up" | "interrupt" | "stop" | "open-chat"; id?: string };
 export type HubTheme = Pick<Theme, "fg" | "bg" | "bold" | "italic" | "underline" | "strikethrough">;
 // Sanitize source before applying our own styles or parsing Markdown.
 export const plain = (text: string) => stripVTControlCharacters(text).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "").replace(/\t/g, "  ");
 const oneLine = (text: string) => plain(text).replace(/[\n\u2028\u2029]/g, " ");
 const count = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}m` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 const connected = (agent: AgentRecord) => agent.state !== "failed" && agent.state !== "stopped";
+
+/** Stable depth-first roster ordered by ownership, preserving insertion order among siblings/orphans. */
+export function hierarchyRoster(agents: readonly AgentRecord[]): AgentRecord[] {
+  const byId = new Map(agents.map((agent) => [agent.id, agent]));
+  const children = new Map<string | undefined, AgentRecord[]>();
+  for (const agent of agents) {
+    const parent = agent.parentId && byId.has(agent.parentId) ? agent.parentId : undefined;
+    const list = children.get(parent) ?? [];
+    list.push(agent);
+    children.set(parent, list);
+  }
+  const ordered: AgentRecord[] = [];
+  const visited = new Set<string>();
+  const visit = (list: AgentRecord[]) => { for (const agent of list) {
+    if (visited.has(agent.id)) continue;
+    visited.add(agent.id); ordered.push(agent); visit(children.get(agent.id) ?? []);
+  } };
+  visit(children.get(undefined) ?? []);
+  for (const agent of agents) if (!visited.has(agent.id)) ordered.push(agent);
+  return ordered;
+}
 const states: Record<AgentState, { icon: string; label: string; color: ThemeColor }> = {
   starting: { icon: "◌", label: "STARTING", color: "warning" },
   running: { icon: "●", label: "RUNNING", color: "accent" },
   idle: { icon: "✓", label: "IDLE", color: "success" },
+  interrupted: { icon: "Ⅱ", label: "INTERRUPTED", color: "warning" },
+  "waiting-input": { icon: "?", label: "NEEDS INPUT", color: "warning" },
+  limited: { icon: "!", label: "LIMITED", color: "warning" },
   failed: { icon: "×", label: "FAILED", color: "error" },
   stopped: { icon: "○", label: "STOPPED", color: "muted" },
 };
@@ -63,7 +87,7 @@ export class HubView {
   private resume() { this.offset = 0; this.detailScroll = 0; this.pausedEntries = undefined; this.pausedRaw = undefined; }
   handleInput(data: string) {
     if (isKeyRelease(data)) return;
-    const agents = [...this.manager.agents.values()];
+    const agents = hierarchyRoster([...this.manager.agents.values()]);
     const agent = agents[this.selected];
     if (matchesKey(data, "alt+a") || this.keys.matches(data, "tui.select.cancel")) this.done({ type: "close" });
     else if (data === "n") this.done({ type: "new" });
@@ -89,8 +113,10 @@ export class HubView {
       if (this.details) this.detailScroll = Math.max(0, this.detailRows.length - this.outputHeight);
       else this.resume();
     }
-    else if (agent && connected(agent) && (data === "m" || this.keys.matches(data, "tui.select.confirm"))) this.done({ type: "message", id: agent.id });
+    else if (agent && connected(agent) && this.keys.matches(data, "tui.select.confirm")) this.done({ type: "open-chat", id: agent.id });
+    else if (agent && connected(agent) && data === "m") this.done({ type: "message", id: agent.id });
     else if (agent && connected(agent) && data === "f") this.done({ type: "follow-up", id: agent.id });
+    else if (agent?.state === "running" && data === "i") this.done({ type: "interrupt", id: agent.id });
     else if (agent && connected(agent) && data === "x") this.done({ type: "stop", id: agent.id });
     this.tui.requestRender();
   }
@@ -159,7 +185,9 @@ export class HubView {
       const selected = i === this.selected;
       const status = states[agent.state];
       const name = oneLine(agent.name || agent.id.slice(0, 8));
-      const title = `${selected ? "▸" : " "} ${this.theme.fg(status.color, status.icon)} ${selected ? this.theme.bold(name) : this.theme.fg("text", name)}`;
+      const depth = Math.min(12, Math.max(0, agent.depth ?? 0));
+      const ancestry = `${"  ".repeat(depth)}${depth ? "↳ " : ""}`;
+      const title = `${selected ? "▸" : " "} ${ancestry}${this.theme.fg(status.color, status.icon)} ${selected ? this.theme.bold(name) : this.theme.fg("text", name)}`;
       const rows = compact
         ? [this.spread(title, this.theme.fg(status.color, status.label), width)]
         : [this.spread(title, this.theme.fg(status.color, status.label), width),
@@ -214,7 +242,7 @@ export class HubView {
     width = Math.max(1, width);
     const rows = Math.max(1, this.tui.terminal.rows);
     const height = this.tui.mode === "regular" ? Math.max(1, Math.floor(rows * 0.8)) : rows;
-    const agents = [...this.manager.agents.values()];
+    const agents = hierarchyRoster([...this.manager.agents.values()]);
     this.selected = Math.min(this.selected, Math.max(0, agents.length - 1));
     const agent = agents[this.selected];
     if (width < 16 || height < 8) {
@@ -251,7 +279,8 @@ export class HubView {
     }
     lines.push(border("├" + "─".repeat(inner) + "┤"));
     const candidates = [key("n", "new"), key("↑↓", "select")];
-    if (agent && connected(agent)) candidates.push(key("m", "send"), key("x", "stop"));
+    if (agent && connected(agent)) candidates.push(key("m", "send"), key("x", "close"));
+    if (agent?.state === "running") candidates.push(key("i", "interrupt"));
     if (agent) candidates.push(key("Tab", this.details ? "activity" : "info"));
     if (agent && connected(agent)) candidates.push(key("f", "follow"));
     if (agent) candidates.push(key("Pg", "scroll"), key("o", "tools"));

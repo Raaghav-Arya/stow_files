@@ -23,8 +23,9 @@ function fixture(config = defaults, overrides = {}) {
       const connection = { event, exit, calls: [], closed: false, async request(type, args) {
         this.calls.push({ type, args });
         if (type === "get_state") return { model: { provider: launch.provider, id: launch.model }, thinkingLevel: "low", sessionFile: "fake.jsonl" };
-        // Exercise events arriving before the prompt acknowledgement.
-        event({ type: "agent_start" });
+        // Exercise events arriving before the prompt acknowledgement, but do not
+        // fabricate a new run when the manager sends abort/queue-control RPCs.
+        if (type === "prompt") event({ type: "agent_start" });
         return { disposition: "started" };
       }, async close() { this.closed = true; } };
       connections.push(connection); return connection;
@@ -84,12 +85,31 @@ try {
   await hub.stop(b.id);
   assert.equal(connections[1].closed, true);
 
+  // Nested assignment and sender provenance are bound to the actual parent.
+  const nested = fixture();
+  const parentAgent = await nested.hub.launch(launch);
+  const childAgent = await nested.hub.launch({ ...launch, task: "nested task", parentId: parentAgent.id });
+  assert.equal(childAgent.mails[0].from, parentAgent.id);
+  await nested.hub.send(childAgent.id, "parent instruction", parentAgent.id);
+  assert.equal(childAgent.mails.at(-1).from, parentAgent.id);
+  assert.match(nested.connections[1].calls.at(-1).args.message, new RegExp(`From ${parentAgent.id} to agent`));
+  await assert.rejects(nested.hub.send(parentAgent.id, "forged child", childAgent.id), /immediate parent/);
+  let policyBlocked = false;
+  const policySafe = fixture(defaults, { assertCanWork: () => { if (policyBlocked) throw new Error("Plan mode blocks agent launch and messages"); } });
+  const healthy = await policySafe.hub.launch(launch);
+  policyBlocked = true;
+  await assert.rejects(policySafe.hub.send(healthy.id, "blocked before dispatch"), /Plan mode/);
+  assert.equal(healthy.state, "running", "pre-dispatch policy rejection does not fail a healthy child");
+  assert.equal(healthy.mails.length, 1, "rejected preflight does not enqueue a prompt");
+  await nested.hub.shutdown(); await policySafe.hub.shutdown();
+
   const turns = fixture({ ...defaults, maxTurns: 1 });
   const t = await turns.hub.launch(launch);
   turns.connections[0].event({ type: "turn_start" });
   turns.connections[0].event({ type: "turn_start" });
-  assert.equal(t.state, "failed");
+  assert.equal(t.state, "limited");
   assert.match(t.error, /turn limit/);
+  assert.equal(turns.connections[0].closed, false, "turn exhaustion preserves the child connection and partial context");
   const failure = fixture();
   await assert.rejects(failure.hub.launch({ ...launch, cwd: join(tmp, "missing-directory") }), /ENOENT/);
   await assert.rejects(failure.hub.launch({ ...launch, tools: ["unknown-tool"] }), /tools must/);
@@ -295,9 +315,11 @@ try {
   const previous = process.env.PI_AGENTS_HUB_CHILD;
   try {
     process.env.PI_AGENTS_HUB_CHILD = "1";
-    let bridgeTool;
-    bridge({ registerTool: (tool) => { bridgeTool = tool; } });
-    assert.equal(bridgeTool.name, "message_parent");
+    const bridgeTools = new Map();
+    bridge({ registerTool: (tool) => bridgeTools.set(tool.name, tool), on() {} });
+    const bridgeTool = bridgeTools.get("message_parent");
+    assert.ok(bridgeTool);
+    assert.ok(bridgeTools.has("agents"), "nested delegation tool is registered alongside legacy message_parent");
     assert.equal((await bridgeTool.execute("id", { message: "Need clarification" })).details.parentMessage, "Need clarification");
   } finally {
     if (previous === undefined) delete process.env.PI_AGENTS_HUB_CHILD;

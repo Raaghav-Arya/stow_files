@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, mkdirSync, writeFileSync, realpathSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, realpathSync, readdirSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { RecordEvent, Transport } from "./rpc.ts";
 import { defaultTools, validateTools } from "./tools.ts";
 import { resultPreview, toolPreview, type ActivityEntry } from "./activity.ts";
+import { acquireOwnerLock, RotatingJournal, writeJsonAtomic } from "./storage.ts";
 
-export type AgentState = "starting" | "running" | "idle" | "failed" | "stopped";
+export type AgentState = "starting" | "running" | "idle" | "interrupted" | "waiting-input" | "limited" | "failed" | "stopped";
 export interface Launch {
   task: string;
+  parentId?: string;
   name?: string;
   provider: string;
   model: string;
@@ -24,22 +26,24 @@ export interface Mail {
 }
 export interface AgentRecord extends Launch {
   id: string; state: AgentState; directory: string; workspace: string;
+  rootSessionId?: string; depth?: number; taskId?: string; taskTurns?: number; settled?: boolean; recoverableQueue?: string[];
   log: string; sessionFile?: string; error?: string;
   output: string; streamedText: string; turns: number; tokens: number; cost: number;
   activity: ActivityEntry[]; assistantActivity?: ActivityEntry; lastAssistant?: string;
   mails: Mail[]; logBytes: number; transport?: Transport;
   serial: Promise<unknown>; timer?: ReturnType<typeof setTimeout>;
-  closing?: Promise<void>; transportClosed?: boolean;
+  activeMs?: number; activeSince?: number; waitingRequestId?: string;
+  closing?: Promise<void>; transportClosed?: boolean; journal?: RotatingJournal;
 }
-export interface HubConfig { maxConcurrent: number; maxAgents: number; maxTurns: number; timeoutMinutes: number }
-export const defaults: HubConfig = { maxConcurrent: 4, maxAgents: 12, maxTurns: 40, timeoutMinutes: 30 };
+export interface HubConfig { maxConcurrent: number; maxAgents: number; maxDepth: number; maxTurns: number; timeoutMinutes: number }
+export const defaults: HubConfig = { maxConcurrent: 16, maxAgents: 128, maxDepth: 3, maxTurns: 1000, timeoutMinutes: 240 };
 export function configFrom(value: unknown): HubConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("agents-hub.json must be an object");
   const config = { ...defaults };
   for (const key of Object.keys(value)) {
     if (!Object.hasOwn(defaults, key)) throw new Error(`Unknown agents-hub setting: ${key}`);
     const number = (value as Record<string, unknown>)[key];
-    const max = key === "timeoutMinutes" ? 240 : key === "maxTurns" ? 200 : 32;
+    const max = key === "timeoutMinutes" ? 1440 : key === "maxTurns" ? 100_000 : key === "maxConcurrent" ? 64 : key === "maxAgents" ? 4096 : 8;
     if (!Number.isInteger(number) || (number as number) < 1 || (number as number) > max) throw new Error(`Invalid ${key}: expected integer 1..${max}`);
     (config as any)[key] = number;
   }
@@ -57,18 +61,76 @@ export interface Dependencies {
 export class AgentManager {
   readonly agents = new Map<string, AgentRecord>();
   readonly listeners = new Set<() => void>();
+  readonly observers = new Set<(agent: AgentRecord, event: RecordEvent) => void>();
   private closed = false;
-  constructor(readonly config: HubConfig, private deps: Dependencies) {}
+  private releaseOwnerLock: () => void;
+  constructor(readonly config: HubConfig, private deps: Dependencies) {
+    mkdirSync(deps.root, { recursive: true, mode: 0o700 });
+    this.releaseOwnerLock = acquireOwnerLock(join(deps.root, ".owner.lock"));
+    this.restoreRetained();
+  }
+  private restoreRetained() {
+    const root = realpathSync(this.deps.root);
+    const rootSessionId = basename(root);
+    const candidates: AgentRecord[] = [];
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^[0-9a-f-]{36}$/i.test(entry.name)) continue;
+      const directory = join(root, entry.name);
+      try {
+        const canonical = realpathSync(directory);
+        const raw = JSON.parse(readFileSync(join(canonical, "agent.json"), "utf8"));
+        if (raw.version !== 1 || raw.id !== entry.name || raw.rootSessionId !== rootSessionId ||
+            raw.directory !== directory || typeof raw.sessionFile !== "string" || !raw.sessionFile ||
+            realpathSync(raw.sessionFile) !== raw.sessionFile || !raw.sessionFile.startsWith(`${canonical}/`) ||
+            realpathSync(raw.workspace) !== raw.workspace || !statSync(raw.workspace).isDirectory() ||
+            !Array.isArray(raw.tools) || typeof raw.task !== "string" || typeof raw.provider !== "string" || typeof raw.model !== "string") continue;
+        const record = { ...raw, state: "stopped" as AgentState, error: undefined, transport: undefined, transportClosed: true,
+          serial: Promise.resolve(), activeSince: undefined, timer: undefined, closing: undefined,
+          activity: [], mails: Array.isArray(raw.mails) ? raw.mails : [], output: "", streamedText: "", logBytes: 0 } as AgentRecord;
+        candidates.push(record);
+      } catch { /* corrupt, incomplete, or unsafe records are not automatically resumed */ }
+    }
+    const ids = new Set(candidates.map((record) => record.id));
+    for (const record of candidates) {
+      if (record.parentId && (!ids.has(record.parentId) || record.depth !== (candidates.find((parent) => parent.id === record.parentId)?.depth || 0) + 1)) continue;
+      this.agents.set(record.id, record);
+    }
+  }
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  observe(listener: (agent: AgentRecord, event: RecordEvent) => void): () => void { this.observers.add(listener); return () => this.observers.delete(listener); }
   private changed(agent: AgentRecord) {
     // Metadata is recovery information, never a claim that a child survives reload.
-    const { transport, serial, timer, closing, output, streamedText, activity, assistantActivity, lastAssistant, ...metadata } = agent;
-    writeFileSync(join(agent.directory, "agent.json"), JSON.stringify(metadata, null, 2), { mode: 0o600 });
+    const { transport, serial, timer, closing, journal, output, streamedText, activity, assistantActivity, lastAssistant, ...metadata } = agent;
+    writeJsonAtomic(join(agent.directory, "agent.json"), { version: 1, ...metadata });
     this.emit();
   }
   private emit() {
     // Observers own their failures; a UI/integration error must not kill a child.
     for (const listener of this.listeners) { try { listener(); } catch { /* isolated observer */ } }
+  }
+  private observed(agent: AgentRecord, event: RecordEvent) {
+    for (const listener of this.observers) { try { listener(agent, event); } catch { /* isolated observer */ } }
+  }
+  private pauseTimer(agent: AgentRecord) {
+    if (agent.timer) clearTimeout(agent.timer);
+    agent.timer = undefined;
+    if (agent.activeSince !== undefined) agent.activeMs = (agent.activeMs || 0) + Math.max(0, Date.now() - agent.activeSince);
+    agent.activeSince = undefined;
+  }
+  private resumeTimer(agent: AgentRecord) {
+    if (agent.timer || agent.state === "waiting-input" || agent.state === "interrupted") return;
+    const remaining = this.config.timeoutMinutes * 60_000 - (agent.activeMs || 0);
+    if (remaining <= 0) { this.fail(agent, new Error("Active task timeout reached")); return; }
+    agent.activeSince = Date.now();
+    agent.timer = setTimeout(() => { this.pauseTimer(agent); this.fail(agent, new Error("Active task timeout reached")); }, remaining);
+  }
+  private async configure(agent: AgentRecord) {
+    const transport = agent.transport as (Transport & { configure?: (config: any) => Promise<unknown> }) | undefined;
+    if (!transport?.configure) return;
+    await transport.configure({ agentId: agent.id, parentId: agent.parentId, depth: agent.depth ?? 0,
+      taskId: agent.taskId || "", maxTurns: this.config.maxTurns, usedTurns: agent.taskTurns || 0,
+      rootPolicy: { allowNested: (agent.depth || 0) < this.config.maxDepth, maxDepth: this.config.maxDepth,
+        maxAgents: this.config.maxAgents, maxConcurrent: this.config.maxConcurrent } });
   }
   private closeAgent(agent: AgentRecord): Promise<void> {
     if (agent.closing) return agent.closing;
@@ -79,10 +141,11 @@ export class AgentManager {
     return agent.closing;
   }
   private log(agent: AgentRecord, event: RecordEvent) {
+    agent.journal ??= new RotatingJournal(agent.log);
     const line = JSON.stringify({ time: new Date().toISOString(), ...event }) + "\n";
-    if (agent.logBytes + Buffer.byteLength(line) > 10 * 1024 * 1024) throw new Error("Agent event log reached 10 MiB limit");
-    appendFileSync(agent.log, line, { mode: 0o600 });
+    agent.journal.append({ time: new Date().toISOString(), ...event });
     agent.logBytes += Buffer.byteLength(line);
+    if (agent.logBytes > 2 * 1024 * 1024) agent.logBytes = 0;
   }
   private text(agent: AgentRecord, text: string) { agent.output = (agent.output + text).slice(-64 * 1024); }
   private activity(agent: AgentRecord, entry: ActivityEntry) {
@@ -101,21 +164,30 @@ export class AgentManager {
     return agent;
   }
   summary(agent: AgentRecord) {
-    return { id: agent.id, name: agent.name, state: agent.state, task: agent.task,
-      definition: agent.definition, tools: agent.tools, provider: agent.provider, model: agent.model, thinking: agent.thinking,
-      workspace: agent.workspace, sessionFile: agent.sessionFile, log: agent.log,
-      turns: agent.turns, tokens: agent.tokens, estimatedCost: agent.cost, error: agent.error };
+    return { id: agent.id, name: agent.name, parentId: agent.parentId, depth: agent.depth ?? 0,
+      taskId: agent.taskId, taskTurns: agent.taskTurns ?? 0, taskTurnLimit: this.config.maxTurns,
+      state: agent.state, task: agent.task, definition: agent.definition, tools: agent.tools,
+      provider: agent.provider, model: agent.model, thinking: agent.thinking, workspace: agent.workspace,
+      sessionFile: agent.sessionFile, log: agent.log, turns: agent.turns,
+      tokens: agent.tokens, estimatedCost: agent.cost, error: agent.error,
+      recoverableQueue: agent.recoverableQueue || [] };
   }
   async launch(input: Launch, signal?: AbortSignal): Promise<AgentRecord> {
     this.deps.assertCanWork?.();
     if (signal?.aborted) throw new Error("Launch cancelled");
     if (this.closed) throw new Error("Agents Hub is shutting down");
     if (!input.task.trim() || input.task.length > 16_000) throw new Error("Task must be 1..16000 characters");
-    if (this.agents.size >= this.config.maxAgents) throw new Error("Session agent budget exhausted");
+    const parentId = (input as Launch & { parentId?: string }).parentId;
+    const parent = parentId ? this.get(parentId) : undefined;
+    if (parent && (!this.live(parent) || !parent.transport || parent.closing)) throw new Error("Delegating parent is not connected");
+    const depth = parent ? (parent.depth ?? 0) + 1 : 1;
+    if (depth > this.config.maxDepth) throw new Error(`Maximum delegation depth ${this.config.maxDepth} reached`);
+    if (this.agents.size >= this.config.maxAgents) throw new Error("Root-session allocated-agent budget exhausted");
     if ([...this.agents.values()].filter((a) => this.live(a) || (a.transport && !a.transportClosed)).length >= this.config.maxConcurrent) throw new Error("Agent connection limit reached; stop an existing agent first");
     const cwd = realpathSync(input.cwd);
     if (!statSync(cwd).isDirectory()) throw new Error("Workspace must be an existing directory");
-    const tools = validateTools(input.tools === undefined ? defaultTools : input.tools);
+    const tools = validateTools(input.tools === undefined ? parent?.tools ?? defaultTools : input.tools);
+    if (parent && tools.some((tool) => !parent.tools?.includes(tool))) throw new Error("Nested agent tools exceed its immediate parent's effective tool grant");
     const id = randomUUID();
     const directory = join(this.deps.root, id);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -123,7 +195,8 @@ export class AgentManager {
     let rejectReady!: (error: unknown) => void;
     const startup = new Promise<void>((resolve, reject) => { ready = resolve; rejectReady = reject; });
     const agent: AgentRecord = { ...input, cwd, tools, name: input.name?.slice(0, 80) || id.slice(0, 8),
-      id, directory, workspace: cwd, state: "starting", log: join(directory, "events.jsonl"),
+      id, directory, workspace: cwd, rootSessionId: parent?.rootSessionId || basename(this.deps.root), parentId, depth,
+      taskId: randomUUID(), taskTurns: 0, settled: false, state: "starting", log: join(directory, "events.jsonl"),
       output: "", streamedText: "", activity: [], turns: 0, tokens: 0, cost: 0, mails: [], logBytes: 0, serial: startup };
     // Reserve capacity before async child startup. Workspace ownership is external.
     this.agents.set(id, agent);
@@ -131,7 +204,7 @@ export class AgentManager {
     signal?.addEventListener("abort", cancel, { once: true });
     // Reserve the initial task before publishing state to observers. Later sends
     // queue after it, and all prompts wait for the startup handshake.
-    const initialPrompt = this.send(id, input.task, "main");
+    const initialPrompt = this.send(id, input.task, parentId || "main");
     void initialPrompt.catch(() => {});
     try {
       this.log(agent, { type: "launch", task: input.task, cwd, tools });
@@ -140,13 +213,13 @@ export class AgentManager {
       this.deps.assertCanWork?.();
       agent.transport = this.deps.connect(agent, (e) => this.event(agent, e), (e) => this.fail(agent, e));
       if (!this.live(agent) || this.closed) { await this.closeAgent(agent); throw new Error("Launch cancelled"); }
-      agent.timer = setTimeout(() => this.fail(agent, new Error("Agent lifetime timeout reached")), this.config.timeoutMinutes * 60_000);
       const state = await agent.transport.request("get_state");
       if (!this.live(agent) || this.closed) throw new Error("Launch cancelled");
       if (state.model?.provider !== input.provider || state.model?.id !== input.model) throw new Error("Child model differs from requested model");
       agent.sessionFile = state.sessionFile;
       agent.thinking = state.thinkingLevel;
       this.changed(agent);
+      await this.configure(agent);
       ready();
       await initialPrompt;
       if (signal?.aborted || this.closed || !this.live(agent)) throw new Error("Launch cancelled");
@@ -162,7 +235,8 @@ export class AgentManager {
     if (!this.live(agent)) return;
     agent.state = "failed";
     agent.error = String(error instanceof Error ? error.message : error);
-    clearTimeout(agent.timer);
+    this.pauseTimer(agent);
+    void this.closeDescendants(agent.id);
     for (const mail of agent.mails) if (mail.state === "queued" || mail.state === "sending") mail.state = "unknown";
     this.text(agent, `\n[FAILED] ${agent.error}\n`);
     this.activity(agent, { kind: "error", text: agent.error });
@@ -170,12 +244,33 @@ export class AgentManager {
     try { this.log(agent, { type: "failure", error: agent.error }); this.changed(agent); } catch { /* disk errors must not leave child running */ }
     this.notify(agent, agent.error, "error");
   }
+  private async closeDescendants(parentId: string) {
+    const children = [...this.agents.values()].filter((child) => child.parentId === parentId && this.live(child));
+    await Promise.allSettled(children.map((child) => this.stop(child.id)));
+  }
   private event(agent: AgentRecord, event: RecordEvent) {
     if (!this.live(agent) || this.closed) return;
     try {
       this.log(agent, event);
-      if (event.type === "agent_start") { agent.state = "running"; agent.lastAssistant = undefined; }
-      if (event.type === "turn_start" && ++agent.turns > this.config.maxTurns) throw new Error("Agent turn limit reached");
+      if (event.type === "agent_start") {
+        agent.state = "running"; agent.settled = false; agent.lastAssistant = undefined;
+        this.resumeTimer(agent);
+      }
+      if (event.type === "turn_start") {
+        agent.turns++;
+        agent.taskTurns = (agent.taskTurns || 0) + 1;
+        if (agent.taskTurns > this.config.maxTurns) {
+          agent.state = "limited";
+          agent.error = `Active task turn limit reached (${this.config.maxTurns}); partial context preserved`;
+          this.pauseTimer(agent);
+          this.activity(agent, { kind: "status", text: agent.error });
+          this.notify(agent, agent.error, "error");
+          void agent.transport?.request("abort").catch(() => {});
+          this.changed(agent);
+          this.observed(agent, event);
+          return;
+        }
+      }
       if (event.type === "message_start" && event.message?.role === "assistant") {
         agent.streamedText = "";
         agent.assistantActivity = this.activity(agent, { kind: "assistant", text: "" });
@@ -199,13 +294,16 @@ export class AgentManager {
         entry.result = resultPreview(event.result);
       }
       if (event.type === "tool_execution_end" && event.toolName === "message_parent" && !event.isError) {
-        if (agent.mails.filter((m) => m.to === "main").length >= 100) throw new Error("Parent mailbox limit reached");
-        const text = event.result?.details?.parentMessage;
-        if (typeof text !== "string" || !text.trim() || text.length > 8000) throw new Error("Invalid child message");
-        agent.mails.push({ id: randomUUID(), from: agent.id, to: "main", text, state: "delivered" });
-        this.text(agent, `\n[to main] ${text}\n`);
-        this.activity(agent, { kind: "mail", label: "To main", text });
-        this.notify(agent, text, "mail");
+        const details = event.result?.details;
+        // Configured children report through correlated supervisor IPC. Only the
+        // no-IPC legacy result includes parentMessage and uses this adapter.
+        const text = details?.parentMessage;
+        if (typeof text === "string" && text.trim() && text.length <= 8000) {
+          agent.mails.push({ id: randomUUID(), from: agent.id, to: "main", text, state: "delivered" });
+          this.text(agent, `\n[to main] ${text}\n`);
+          this.activity(agent, { kind: "mail", label: "To main", text });
+          this.notify(agent, text, "mail");
+        }
       }
       if (event.type === "message_end") {
         const message = event.message;
@@ -228,33 +326,50 @@ export class AgentManager {
           const usage = message.usage;
           agent.tokens += usage?.totalTokens || 0;
           agent.cost += usage?.cost?.total || 0;
-          if (message.stopReason === "error" || message.stopReason === "aborted") throw new Error(message.errorMessage || message.stopReason);
+          if (message.stopReason === "error") throw new Error(message.errorMessage || "Agent request failed");
+          if (message.stopReason === "aborted" && agent.state !== "limited") agent.state = "interrupted";
         }
       }
       if (event.type === "agent_settled") {
-        agent.state = "idle";
-        this.text(agent, "\n[idle — ready for another message]\n");
+        if (agent.state !== "interrupted" && agent.state !== "waiting-input" && agent.state !== "limited") agent.state = "idle";
+        agent.settled = true;
+        this.pauseTimer(agent);
+        this.text(agent, `\n[${agent.state} — ready for another message]\n`);
         this.activity(agent, { kind: "status", text: "Idle — ready for another message" });
         this.notify(agent, agent.lastAssistant || "Agent is idle; inspect its activity in Agents Hub.", "settled");
       }
       // Streaming notifications don't rewrite metadata on every token.
       if (event.type !== "message_update") this.changed(agent);
       else this.emit();
-    } catch (error) { this.fail(agent, error); }
+      this.observed(agent, event);
+    } catch (error) { this.fail(agent, error); this.observed(agent, event); }
   }
-  async send(id: string, text: string, from: "main" | "user" = "user", delivery: "steer" | "followUp" = "steer"): Promise<Mail> {
+  async send(id: string, text: string, from: string = "user", delivery: "steer" | "followUp" = "steer", newTask = false): Promise<Mail> {
     this.deps.assertCanWork?.();
     const agent = this.get(id);
     if (!text.trim() || text.length > 16_000) throw new Error("Message must be 1..16000 characters");
-    if (agent.mails.length >= 200) throw new Error("Agent mailbox budget exhausted");
     const mail: Mail = { id: randomUUID(), from, to: id, text, state: "sending" };
+    if (!from || from.length > 128) throw new Error("Invalid sender identity");
+    if (from !== "main" && from !== "user") {
+      const sender = this.get(from);
+      if (agent.parentId !== sender.id) throw new Error("Only the immediate parent may send as an agent identity");
+    }
     agent.mails.push(mail);
     let submitted = false;
     const operation = agent.serial.then(async () => {
       this.deps.assertCanWork?.();
       if (!this.live(agent) || !agent.transport || this.closed) throw new Error("Agent is not connected");
-      this.text(agent, `\n[from ${from}] ${text}\n`);
-      this.activity(agent, { kind: "message", label: from === "user" ? "You" : "Main session", text });
+      if (newTask && !(agent.state === "idle" || (agent.state === "limited" && agent.settled))) {
+        throw new Error("A new task can start only after the prior task has settled; replies and resumes continue its budget");
+      }
+      if (agent.state === "limited" && !newTask) throw new Error("Task turn budget exhausted; explicitly start a new task after settlement");
+      if (agent.state === "waiting-input" && from !== agent.parentId && from !== "main") throw new Error("Agent is waiting for its parent to answer the input request");
+      if (newTask) { agent.taskId = randomUUID(); agent.taskTurns = 0; agent.activeMs = 0; agent.error = undefined; await this.configure(agent); }
+      if (agent.state === "interrupted") agent.state = "running";
+      agent.settled = false;
+      const senderLabel = from === "user" ? "You" : from === "main" ? "Main session" : from;
+      this.text(agent, `\n[from ${senderLabel}] ${text}\n`);
+      this.activity(agent, { kind: "message", label: senderLabel, text });
       this.log(agent, { type: "mail", ...mail });
       if (agent.state === "idle") agent.state = "running";
       submitted = true;
@@ -277,7 +392,9 @@ export class AgentManager {
     catch (error) {
       if (mail.state !== "delivered") mail.state = submitted ? "unknown" : "failed";
       mail.error = String(error);
-      this.fail(agent, error); // Never retry a possibly accepted prompt automatically.
+      // Admission/policy/state rejection happened before transport submission; it
+      // must not take down a healthy child. Post-submission failures are uncertain.
+      if (submitted) this.fail(agent, error);
       throw error;
     }
   }
@@ -299,12 +416,70 @@ export class AgentManager {
       signal?.addEventListener("abort", abort, { once: true });
     });
   }
+  async interrupt(id: string): Promise<string[]> {
+    this.deps.assertCanWork?.();
+    const agent = this.get(id);
+    if (!agent.transport || (agent.state !== "running" && agent.state !== "starting")) throw new Error("Agent has no active work to interrupt");
+    // Pi documents that clearing before abort is required to preserve queued prompts.
+    const queued = await agent.transport.request("clear_queue");
+    const steering = Array.isArray(queued?.steering) ? queued.steering : [];
+    const followUp = Array.isArray(queued?.followUp) ? queued.followUp : [];
+    agent.recoverableQueue = [...steering, ...followUp].filter((text): text is string => typeof text === "string");
+    await agent.transport.request("abort");
+    this.pauseTimer(agent);
+    if (this.live(agent)) { agent.state = "interrupted"; this.changed(agent); }
+    return [...agent.recoverableQueue];
+  }
+  setWaitingInput(id: string, requestId: string): void {
+    const agent = this.get(id);
+    if (!requestId || requestId.length > 128) throw new Error("Invalid input request id");
+    if (agent.waitingRequestId && agent.waitingRequestId !== requestId) throw new Error("Agent already has a different pending input request");
+    agent.waitingRequestId = requestId;
+    agent.state = "waiting-input";
+    this.pauseTimer(agent);
+    this.changed(agent);
+  }
+  resolveInput(id: string, requestId: string): void {
+    const agent = this.get(id);
+    if (!agent.waitingRequestId || agent.waitingRequestId !== requestId) throw new Error("Stale or mismatched input reply");
+    agent.waitingRequestId = undefined;
+    agent.state = "running";
+    this.resumeTimer(agent);
+    this.changed(agent);
+  }
+  async resume(id: string): Promise<AgentRecord> {
+    this.deps.assertCanWork?.();
+    const agent = this.get(id);
+    if (agent.transport && !agent.transportClosed && this.live(agent)) return agent;
+    if (this.closed) throw new Error("Agents Hub is shutting down");
+    if (!agent.sessionFile) throw new Error("Cannot resume: retained child session path is missing");
+    if ([...this.agents.values()].filter((a) => this.live(a) || (a.transport && !a.transportClosed)).length >= this.config.maxConcurrent)
+      throw new Error("Agent connection limit reached; stop an existing agent first");
+    const previous = agent.state;
+    agent.state = "starting"; agent.transportClosed = false; agent.closing = undefined;
+    try {
+      this.deps.assertCanWork?.();
+      agent.transport = this.deps.connect(agent, (e) => this.event(agent, e), (e) => this.fail(agent, e));
+      const state = await agent.transport.request("get_state");
+      if (state.sessionFile && state.sessionFile !== agent.sessionFile) throw new Error("Resumed child session ownership mismatch");
+      if (state.model?.provider !== agent.provider || state.model?.id !== agent.model) throw new Error("Resumed child model differs from retained metadata");
+      agent.state = previous === "waiting-input" ? "waiting-input" : previous === "interrupted" ? "interrupted" : "idle";
+      await this.configure(agent);
+      this.changed(agent);
+      return agent;
+    } catch (error) {
+      await this.closeAgent(agent);
+      agent.state = previous;
+      throw error;
+    }
+  }
   async stop(id: string) {
     const agent = this.get(id);
     if (!this.live(agent)) { await this.closeAgent(agent); return; }
     agent.state = "stopped";
     this.activity(agent, { kind: "status", text: "Stopped — working directory left untouched" });
-    clearTimeout(agent.timer);
+    this.pauseTimer(agent);
+    await this.closeDescendants(agent.id);
     for (const mail of agent.mails) if (mail.state === "queued" || mail.state === "sending") mail.state = "unknown";
     try { this.changed(agent); } finally { await this.closeAgent(agent); }
   }
@@ -312,5 +487,7 @@ export class AgentManager {
     this.closed = true;
     await Promise.allSettled([...this.agents.keys()].map((id) => this.stop(id)));
     this.listeners.clear();
+    this.observers.clear();
+    this.releaseOwnerLock();
   }
 }

@@ -1,0 +1,23 @@
+// Shared Hub control validation and authenticated ownership; no provider requests.
+import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { jiti } from "./pi-runtime.mjs";
+const dir = fileURLToPath(new URL("../.pi/agent/extensions/agents-hub/", import.meta.url));
+const { HubControl } = await jiti.import(join(dir, "control.ts"));
+const a = { id: "root-child", parentId: undefined, task: "t", workspace: "/tmp", provider: "openai", model: "gpt", thinking: "high" };
+const b = { ...a, id: "nested", parentId: a.id };
+const manager = { agents: new Map([[a.id, a], [b.id, b]]), get(id) { const x=this.agents.get(id); if(!x) throw Error("Unknown"); return x; }, summary(x) { return { id:x.id }; }, send(...args) { return args; }, interrupt: async () => [], stop: async () => {} };
+const launches=[];
+const control = new HubControl({ manager, launch: async input => { launches.push(input); return input; }, report: async (...args) => args });
+const child = { caller: { kind: "agent", agentId: a.id } };
+assert.equal((await control.handle({ method:"agents.read", params:{ id:b.id } }, child)).id, b.id);
+await assert.rejects(control.handle({ method:"agents.read", params:{ id:"other" } }, child), /Unknown|subtree/);
+await assert.rejects(control.handle({ method:"agents.list", params:{ extra:true } }, child), /Unknown/);
+await assert.rejects(control.handle({ method:"agents.launch", params:{ task:"x", parentId:b.id } }, child), /impersonate/);
+await control.handle({ method:"agents.launch", params:{ task:"nested task" } }, child);
+assert.equal(launches[0].parentId, a.id);
+await assert.rejects(control.handle({ method:"agents.send", params:{ id:b.id, message:"x", surprise:true } }, child), /Unknown/);
+const report=await control.handle({ method:"message_parent", params:{ message:"root report", kind:"result" } }, child);
+assert.equal(report[0], a.id); assert.equal(report[1], undefined); assert.equal(report[2].kind,"result");
+console.log("Agents Hub control tests passed (strict args, subtree scope, nested defaults, root routing)");
