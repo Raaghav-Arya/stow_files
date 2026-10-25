@@ -8,7 +8,7 @@ export default function askUser(pi: ExtensionAPI) {
   pi.on("session_shutdown", async () => { active?.abort(); });
   pi.registerTool({
     name: "ask_user", label: "Ask user", exposure: "model-only",
-    description: "Ask the user 1–12 questions with stable IDs: single choice, multi-select, or free text. Choices need stable option IDs and may have descriptions. All questions require an explicit answer and final review/submit. Cancellation, needs-user-input or abort never means approval. Do not retry automatically when UI is unavailable; relay questions to the user instead. This is a local schema, not Claude AskUserQuestion compatibility.",
+    description: "Ask the user 1–12 questions with stable IDs: single choice, multi-select, or free text. Choices need stable option IDs and may have descriptions. Users may leave any question unanswered, then explicitly submit at review; return only answered items in answers and list omissions in skippedQuestionIds. Notes are separate optional context and never count as answers. Unsaved descriptive drafts are omitted. The user may request discussion of any question, returning discussion-requested with clearly partial context, not submitted answers or approval. Discuss conversationally, then reassess and ask a fresh request with only still-relevant questions; never automatically replay the old questionnaire. Cancellation and abort return no answer context: report status only and do not recap the cancelled questionnaire or infer a response. Skipped questions, cancellation, abort and needs-user-input never imply approval. Do not retry automatically when UI is unavailable; relay questions to the user instead. This is a local schema, not Claude AskUserQuestion compatibility.",
     parameters: ParamsSchema, outputSchema: ResultSchema, executionMode: "sequential",
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     async execute(_id, params, signal, _update, ctx) {
@@ -31,9 +31,17 @@ export default function askUser(pi: ExtensionAPI) {
     renderResult(result, options, theme) {
       const data = result.details as QuestionResult | undefined;
       if (!data) return new Text(theme.fg("muted", "Waiting for user input…"), 0, 0);
-      const summary = data.status === "submitted" ? `Submitted ${data.answers.length} answer(s)` : `${data.status}: ${data.reason}`;
-      const detail = options.expanded && data.status === "submitted" ? "\n" + JSON.stringify(data.answers) : "";
-      return new Text(theme.fg(data.status === "submitted" ? "success" : "warning", display(summary + detail)), 0, 0);
+      const summary = data.status === "submitted"
+        ? `Submitted ${data.answers.length} answer(s); skipped ${data.skippedQuestionIds?.length ?? 0}`
+        : data.status === "discussion-requested"
+          ? `Discussion requested for ${data.question.id}; partial context only`
+          : data.status;
+      const detail = options.expanded && (data.status === "submitted" || data.status === "discussion-requested")
+        ? "\n" + JSON.stringify(data.status === "submitted"
+          ? { answers: data.answers, skippedQuestionIds: data.skippedQuestionIds ?? [], notes: data.notes ?? [] }
+          : { question: data.question, partial: data.partial }) : "";
+      const color = data.status === "submitted" ? "success" : data.status === "discussion-requested" ? "accent" : "warning";
+      return new Text(theme.fg(color, display(summary + detail)), 0, 0);
     },
   });
 }

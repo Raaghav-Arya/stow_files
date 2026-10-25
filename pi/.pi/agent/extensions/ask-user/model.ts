@@ -11,14 +11,36 @@ export const QuestionSchema = Type.Object({
 export const ParamsSchema = Type.Object({ questions: Type.Array(QuestionSchema, { minItems: 1, maxItems: 12 }) }, { additionalProperties: false });
 export type Question = Static<typeof QuestionSchema>;
 export type Answer = { id: string; kind: "single" | "multi"; optionIds: string[] } | { id: string; kind: "text"; text: string };
-export type QuestionResult = { status: "submitted"; answers: Answer[] } | { status: "cancelled" | "aborted" | "busy" | "needs-user-input"; answers: []; reason: string };
-export const ResultSchema = Type.Object({
-  status: Type.Union([Type.Literal("submitted"), Type.Literal("cancelled"), Type.Literal("aborted"), Type.Literal("busy"), Type.Literal("needs-user-input")]),
-  answers: Type.Array(Type.Union([
-    Type.Object({ id: ID, kind: Type.Literal("text"), text: Type.String() }),
-    Type.Object({ id: ID, kind: Type.Union([Type.Literal("single"), Type.Literal("multi")]), optionIds: Type.Array(ID) }),
-  ])), reason: Type.Optional(Type.String()),
-});
+export type PartialQuestion = { id: string; prompt: string; selectedOptionIds: string[]; textDraft?: string; note?: string };
+export type QuestionResult =
+  | { status: "submitted"; answers: Answer[]; skippedQuestionIds: string[]; notes: { id: string; note: string }[] }
+  | { status: "discussion-requested"; question: { id: string; prompt: string }; partial: PartialQuestion[] }
+  | { status: "cancelled" | "aborted" | "busy" | "needs-user-input"; answers: []; reason: string };
+const AnswerSchema = Type.Union([
+  Type.Object({ id: ID, kind: Type.Literal("text"), text: Type.String({ minLength: 1, maxLength: 8000 }) }, { additionalProperties: false }),
+  Type.Object({ id: ID, kind: Type.Union([Type.Literal("single"), Type.Literal("multi")]), optionIds: Type.Array(ID, { minItems: 1, maxItems: 30 }) }, { additionalProperties: false }),
+]);
+export const ResultSchema = Type.Union([
+  Type.Object({
+    status: Type.Literal("submitted"),
+    answers: Type.Array(AnswerSchema, { maxItems: 12 }),
+    skippedQuestionIds: Type.Array(ID, { maxItems: 12 }),
+    notes: Type.Array(Type.Object({ id: ID, note: Type.String({ minLength: 1, maxLength: 8000 }) }, { additionalProperties: false }), { maxItems: 12 }),
+  }, { additionalProperties: false }),
+  Type.Object({
+    status: Type.Literal("discussion-requested"),
+    question: Type.Object({ id: ID, prompt: Type.String({ maxLength: 2000 }) }, { additionalProperties: false }),
+    partial: Type.Array(Type.Object({
+      id: ID, prompt: Type.String({ maxLength: 2000 }), selectedOptionIds: Type.Array(ID, { maxItems: 30 }),
+      textDraft: Type.Optional(Type.String({ maxLength: 8000 })),
+      note: Type.Optional(Type.String({ maxLength: 8000 })),
+    }, { additionalProperties: false }), { minItems: 1, maxItems: 12 }),
+  }, { additionalProperties: false }),
+  Type.Object({
+    status: Type.Union([Type.Literal("cancelled"), Type.Literal("aborted"), Type.Literal("busy"), Type.Literal("needs-user-input")]),
+    answers: Type.Array(Type.Never(), { maxItems: 0 }), reason: Type.String(),
+  }, { additionalProperties: false }),
+]);
 export function validateQuestions(questions: Question[]): void {
   if (!Array.isArray(questions) || questions.length < 1 || questions.length > 12) throw new Error("Expected 1–12 questions");
   const ids = new Set<string>();
@@ -33,7 +55,7 @@ export function validateQuestions(questions: Question[]): void {
     }
   }
 }
-export function unanswered(status: Exclude<QuestionResult["status"], "submitted">, reason: string): QuestionResult {
+export function unanswered(status: Exclude<QuestionResult["status"], "submitted" | "discussion-requested">, reason: string): QuestionResult {
   return { status, answers: [], reason };
 }
 export class QuestionState {
@@ -41,6 +63,7 @@ export class QuestionState {
   cursor = 0;
   readonly answers = new Map<string, Answer>();
   readonly drafts = new Map<string, string>();
+  readonly notes = new Map<string, string>();
   constructor(readonly questions: Question[]) { validateQuestions(questions); }
   get question() { return this.questions[this.page]; }
   get review() { return this.page === this.questions.length; }
@@ -59,14 +82,27 @@ export class QuestionState {
   text(value: string) {
     const q = this.question;
     if (!q || q.kind !== "text") return false;
+    this.answers.delete(q.id);
+    if (value.length > 8000) return false;
     this.drafts.set(q.id, value);
-    if (!value.trim() || value.length > 8000) return false;
+    if (!value.trim()) return false;
     this.answers.set(q.id, { id: q.id, kind: "text", text: value });
     this.jump(this.page + 1); return true;
   }
   submit(): QuestionResult | undefined {
-    if (!this.review || !this.complete) return;
-    return { status: "submitted", answers: this.questions.map(q => this.answers.get(q.id)!) };
+    if (!this.review) return;
+    return {
+      status: "submitted",
+      answers: this.questions.flatMap(q => this.answers.has(q.id) ? [this.answers.get(q.id)!] : []),
+      skippedQuestionIds: this.questions.filter(q => !this.answers.has(q.id)).map(q => q.id),
+      notes: this.questions.flatMap(q => this.notes.has(q.id) ? [{ id: q.id, note: this.notes.get(q.id)! }] : []),
+    };
+  }
+  discussion(question: Question): QuestionResult {
+    return { status: "discussion-requested", question: { id: question.id, prompt: question.prompt }, partial: this.questions.map(q => {
+      const answer = this.answers.get(q.id);
+      return { id: q.id, prompt: q.prompt, selectedOptionIds: answer && answer.kind !== "text" ? [...answer.optionIds] : [], ...(q.kind === "text" ? { textDraft: this.drafts.get(q.id) ?? (answer?.kind === "text" ? answer.text : "") } : {}), ...(this.notes.has(q.id) ? { note: this.notes.get(q.id) } : {}) };
+    }) };
   }
 }
 // Never render model-controlled terminal escape sequences (including OSC links).

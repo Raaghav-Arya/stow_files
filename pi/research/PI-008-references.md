@@ -58,6 +58,75 @@ rather than installing either example unchanged. qna's nested model extraction
 and prompt editor replacement are intentionally not used (no model call and no
 main draft mutation).
 
+## Interaction revision — navigation, notes and conversational handoff
+
+Revisited the installed official `examples/extensions/questionnaire.ts` and the
+OpenCode source findings above before extending the existing implementation.
+The official example is a useful starting point for Tab/Shift+Tab question tabs,
+a separate native Editor, and an explicit submission page. We continue reusing
+Pi's installed Editor and custom-component runtime directly, plus the existing
+local state/UI/tool implementation. No new third-party implementation code was
+copied or executed; no dependency was installed. OpenCode's Effect/Solid service
+and web dock cannot be dropped into this terminal extension without substantial
+adaptation. Popular plugin reuse remains encouraged when suitable, not prohibited.
+
+The revised interaction adopts question-only Tab navigation, adds independent
+optional notes, and returns a distinct discussion result containing partial
+context. Unlike the official example, navigation also works inside editors,
+drafts survive navigation, empty text is not fabricated into an answer, key
+releases are ignored, multi-select is supported, and the abort lifecycle is owned.
+Discussion is an explicit exit to normal conversation, not questionnaire replay
+or implicit submission. Submitted notes and discussion drafts enter tool-result
+history; cancellation/abort still return no partial data.
+
+Checked installed `interactive-mode.js` `setupExtensionShortcuts` and
+`showExtensionCustom`: extension shortcuts belong to the default editor, while
+the custom interaction owns focus. Tests exercise actual TuiMainScreen and
+TuiAltScreen input routing with an instrumented main CustomEditor, proving that
+AskUser consumes Shift+Tab without calling that editor's shortcut handler. This
+is an offline focus-routing check, not physical-terminal forwarding acceptance.
+
+Luna high produced the initial revision; parent review corrected navigation/test
+sequences, strict result discrimination, stale-answer handling, bounded draft
+preservation, help text and documentation, and expanded the regression tests.
+
+## Live-test follow-up fixes
+
+User live-tested submission, single/multi/text input, multiline notes, discussion
+and cancellation, then requested automatic text entry, no duplicate note preview,
+and readable question/answer/note blocks on review. They also clarified that
+questions may be left unanswered, whereas cancellation must expose no answer
+context. A Luna high worker implemented the focused follow-up against the same
+installed APIs and existing local code, without new dependencies or external-code
+execution. Parent review checked newline indentation, old persisted-result
+rendering, absence of duplicate editor previews, optional/skipped submission,
+cancellation/abort status-only rendering and theme/scroll behavior.
+
+Explicit submission now returns only saved answers plus `skippedQuestionIds` and
+separate notes; unsaved descriptive drafts are omitted. This is distinct from
+intentional discussion context and from context-free cancellation/abort. These
+changes supersede the original all-questions-required behavior described above.
+Model instructions forbid cancellation recaps; this is not erasure of original
+tool arguments or earlier session history. Revised controls require reload and
+live acceptance; the prior live test does not validate the final visual layout.
+
+### Saved-note placement and review color follow-up
+
+Live feedback confirmed direct text entry and duplicate-preview removal, but found
+saved-note visibility and review contrast insufficient. The local renderer now
+places saved notes after the choices and scrolls that block into view when its
+editor closes. Review applies existing Pi theme roles on every wrapped line:
+`accent` for all question headings, `text` for saved answers, `mdHeading` for notes,
+and `muted` for unanswered/draft content. These roles were checked against the
+installed theme docs and actual dark/light palettes; no hard-coded white text
+or new theme definition is introduced. Regression tests exercise overflowing
+choices, multiline notes, resize, preview hiding and distinct actual theme colors.
+This is a focused revision of the existing implementation, not new external code.
+After reload and a further live questionnaire, the user confirmed that everything
+looks fine, accepting the final saved-note placement and review colors in their
+current setup. This supersedes the pending live-acceptance notes above without
+claiming exhaustive theme, terminal-stack or IME coverage.
+
 ## Local review/test limits
 
 Schema/state, UI and tool are separate modules. Sequential declaration plus a

@@ -516,7 +516,7 @@ Ctrl+C clearing editor text is unrelated.
 
 ## PI-008 — AskUser tool and polished question TUI
 
-**Status:** done — implemented, reviewed, integrated; 9 tests/typecheck and discovery pass. Follow-up: reload/manual visual acceptance | **Size:** medium
+**Status:** done — implemented, regression-tested and user-accepted after reload, including final note placement and review colors | **Size:** medium
 
 **Implementation:** `extensions/ask-user/{index,model,ui}.ts`, live link installed.
 `ask_user` is model-callable, with a local stable-ID schema (not Claude wire
@@ -528,12 +528,40 @@ UI. Official `question.ts` and `questionnaire.ts` demonstrate model-callable
 questions, but are not automatically enabled as a Claude-style AskUser tool.
 
 **Implemented defaults:** `ask_user`, local non-Claude schema, themed inline
-custom screen with single/multi/text questions, back navigation and final review.
-User visual acceptance remains pending.
+custom screen with single/multi/text questions and explicit final review.
+User verified submission, choices/text, multiline notes, discussion and cancellation.
+Feedback fixes permit explicit partial or all-skipped submission (`answers` plus
+`skippedQuestionIds`), keep notes separate,
+omit unsaved drafts, enter text editing automatically, improve review layout, and
+render cancellation status only. User reloaded, exercised the revised controls,
+and confirmed that everything looks fine. The revision retains:
+- Tab/Shift+Tab next/previous question (including inside editors); never selection
+  or submission, and never global plan-mode switching while AskUser owns focus.
+- `n` for optional per-question multiline notes, returned separately from answers.
+- `d` to discuss any question (or highlighted question on review), returning
+  `discussion-requested` with clearly partial selections, text drafts and notes.
+  Discuss in conversation, then generate a fresh set of still-relevant questions;
+  no automatic reopening or stale-question replay.
+- Dedicated labelled descriptive-answer/note editors, not the main prompt line;
+  preserved drafts, multiple-choice checkboxes, and no stale-answer submission.
+- Numbered review blocks with bullet selections, unanswered/draft distinctions,
+  multiline notes, no visible internal IDs, and cancellation rendering without recap.
+- Follow-up: saved `Note:` blocks sit below choices and are scrolled into view
+  after saving; no duplicate preview while editing. All review headings are
+  accent-colored, answers use normal text, and notes use a distinct theme role.
+  Tests cover note visibility with long choices/resize and actual dark/light colors;
+  user accepted the final placement/color changes after reload.
+
+The feedback revision is covered by 33 focused AskUser tests and typecheck;
+Luna high implemented the fixes, and parent review added regression coverage for
+legacy results, mixed partial submission, preview duplication and themed review
+scrolling. Full-suite checks are recorded in the implementation report.
 
 **Acceptance:**
 - Structured single choice, multi-select and free text with option descriptions;
-  multiple questions with back navigation and a final review/submit step.
+  Tab/Shift+Tab navigation, optional notes, automatic multiline text entry and a
+  final explicit review/submit step allowing unanswered questions. Always offer
+  discussion without submitting the questionnaire; reassess before a fresh request.
 - Keyboard-first controls, visible help, cancellation, and no default/fabricated
   answer when cancelled. Preserve current prompt draft.
 - Typed validated answer results with stable IDs; concise transcript rendering.
