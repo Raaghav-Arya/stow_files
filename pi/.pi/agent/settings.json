@@ -7,5 +7,9 @@
   "enabledModels": [
     "openai/gpt-[6-9]*"
   ],
-  "tuiMode": "fullscreen"
+  "tuiMode": "fullscreen",
+  "editorPaddingX": 1,
+  "followUpMode": "all",
+  "hideThinkingBlock": true,
+  "doubleEscapeAction": "tree"
 }
