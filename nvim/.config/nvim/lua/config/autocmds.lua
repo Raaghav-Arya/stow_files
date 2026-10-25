@@ -13,11 +13,9 @@ vim.api.nvim_create_autocmd("SessionLoadPost", {
   callback = function()
     -- Small delay to ensure session is fully loaded
     vim.defer_fn(function()
-      local CLI_TOOL = vim.g.sidekick_cli_tool or "agy"
-      local CLI_DISPLAY = CLI_TOOL:sub(1, 1):upper() .. CLI_TOOL:sub(2)
       local count = require("config.sidekick_restore").restore()
       if count > 0 then
-        vim.notify("Restored " .. count .. " " .. CLI_DISPLAY .. " session(s)", vim.log.levels.INFO)
+        vim.notify("Relinked " .. count .. " Sidekick CLI session(s)", vim.log.levels.INFO)
       end
     end, 100)
   end,

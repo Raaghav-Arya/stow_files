@@ -1,5 +1,5 @@
 -- CLI tool to use for AI sessions (change to "claude", "copilot", etc.)
-local CLI_TOOL = "agy"
+local CLI_TOOL = "pi"
 
 vim.g.sidekick_cli_tool = CLI_TOOL -- expose for autocmds.lua
 local CLI_PREFIX = CLI_TOOL .. "_"
@@ -313,49 +313,76 @@ local keys = {
     {
         "<leader>ao",
         function()
-            local ok, State = pcall(require, "sidekick.cli.state")
-            if not ok then
-                return
-            end
-
-            local states = State.get({ installed = true })
+            local tools = require("sidekick.config").tools()
             local items = {}
-            for _, s in ipairs(states) do
-                local name = s.tool.name
-                -- Only bare tool names (no _N suffix), including the default CLI_TOOL
-                -- Also exclude tools that already have a running session (s.session exists)
-                if not name:match("^[%a_]+_%d+$") and not s.session then
-                    items[#items + 1] = s
+            for name, tool in pairs(tools) do
+                -- List installed tools, not discovered sessions or dynamic slots.
+                if not name:match("^[%a_]+_%d+$") and vim.fn.executable(tool.cmd[1]) == 1 then
+                    items[#items + 1] = tool
                 end
             end
+            table.sort(items, function(a, b)
+                return a.name < b.name
+            end)
 
             if #items == 0 then
                 vim.notify("No installed CLI tools found", vim.log.levels.INFO)
                 return
             end
 
-            local ok_sel, SelectMod = pcall(require, "sidekick.cli.ui.select")
-            local snacks_fmt = ok_sel and SelectMod.format or nil
-
             vim.ui.select(items, {
                 prompt = "Open CLI Tool",
-                kind = "sidekick_cli",
-                format_item = function(s)
-                    local status = (s.terminal and s.terminal:is_open()) and " [visible]"
-                        or s.attached and " [attached]"
-                        or ""
-                    return s.tool.name .. status
+                format_item = function(tool)
+                    return tool.name
                 end,
-                snacks = snacks_fmt and { format = snacks_fmt } or nil,
             }, function(choice)
                 if choice then
                     local n = next_global_slot()
-                    local name = ensure_extra_slot(choice.tool.name, n)
+                    local name = ensure_extra_slot(choice.name, n)
                     toggle_session(name)
                 end
             end)
         end,
         desc = "Open CLI Tool",
+    },
+    {
+        "<leader>aO",
+        function()
+            local State = require("sidekick.cli.state")
+            local Select = require("sidekick.cli.ui.select")
+            local items = {}
+            for _, state in ipairs(State.get({})) do
+                if state.session then
+                    items[#items + 1] = state
+                end
+            end
+
+            if #items == 0 then
+                vim.notify("No open CLI sessions", vim.log.levels.INFO)
+                return
+            end
+
+            vim.ui.select(items, {
+                prompt = "Open CLI Sessions",
+                kind = "sidekick_cli",
+                format_item = function(state)
+                    local parts = Select.format(state)
+                    return table.concat(vim.tbl_map(function(part)
+                        return part[1]
+                    end, parts))
+                end,
+                snacks = { format = Select.format },
+            }, function(choice)
+                if choice then
+                    if is_our_session(choice.tool.name) then
+                        toggle_session(choice.tool.name)
+                    else
+                        State.attach(choice, { show = true, focus = true })
+                    end
+                end
+            end)
+        end,
+        desc = "Pick Open CLI Session",
     },
     {
         "<leader>an",
@@ -571,9 +598,11 @@ for i = 1, 5 do
     }
 end
 
-local function tmux_nav(cmd)
+local function split_nav(direction)
     return function()
-        vim.schedule(function() vim.cmd(cmd) end)
+        vim.schedule(function()
+            require("smart-splits")["move_cursor_" .. direction]()
+        end)
     end
 end
 
@@ -596,12 +625,13 @@ return {
         },
         win = {
           keys = {
+            stopinsert = false, -- pass <C-q> through to CLI apps (Pi navigation mode)
             prompt = false, -- pass <C-p> through to Claude Code for navigation
             buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
-            nav_left  = { "<c-h>", tmux_nav("NvimTmuxNavigateLeft"),  mode = "t", desc = "navigate left (tmux-aware)" },
-            nav_down  = { "<c-j>", tmux_nav("NvimTmuxNavigateDown"),  mode = "t", desc = "navigate down (tmux-aware)" },
-            nav_up    = { "<c-k>", tmux_nav("NvimTmuxNavigateUp"),    mode = "t", desc = "navigate up (tmux-aware)" },
-            nav_right = { "<c-l>", tmux_nav("NvimTmuxNavigateRight"), mode = "t", desc = "navigate right (tmux-aware)" },
+            nav_left  = { "<c-h>", split_nav("left"),  mode = "t", desc = "navigate left (multiplexer-aware)" },
+            nav_down  = { "<c-j>", split_nav("down"),  mode = "t", desc = "navigate down (multiplexer-aware)" },
+            nav_up    = { "<c-k>", split_nav("up"),    mode = "t", desc = "navigate up (multiplexer-aware)" },
+            nav_right = { "<c-l>", split_nav("right"), mode = "t", desc = "navigate right (multiplexer-aware)" },
           },
         },
       },
