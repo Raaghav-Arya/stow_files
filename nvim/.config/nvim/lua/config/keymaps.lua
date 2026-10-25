@@ -28,12 +28,18 @@ vim.keymap.set("n", "yX", '"+X', { noremap = true, desc = "Cut character before 
 -- Cut in visual mode: just use 'x' (simpler)
 vim.keymap.set("v", "x", '"+d', { noremap = true, desc = "Cut selection to clipboard" })
 
+-- Clipboard paste in file buffers (keep normal-mode Ctrl+V for visual blocks)
+vim.keymap.set("n", "<C-S-v>", '"+p', { noremap = true, desc = "Paste from clipboard" })
+for _, key in ipairs({ "<C-v>", "<C-S-v>" }) do
+  vim.keymap.set("i", key, '<C-r><C-o>+', { noremap = true, desc = "Paste from clipboard" })
+end
+
 -- Terminal mode clipboard mappings for better integration with sidekick
 vim.keymap.set("t", "<C-S-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
 vim.keymap.set("t", "<C-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
 
--- Easy escape from terminal mode
-vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { noremap = true, desc = "Exit terminal mode" })
+-- Leave terminal-input mode with Neovim's built-in <C-\><C-n>.
+-- Keep Escape (including repeated presses) available to terminal applications.
 
 -- Navigate between Neovim and terminal windows
 vim.keymap.set("t", "<C-h>", "<C-\\><C-n><C-w>h", { noremap = true, desc = "Navigate left from terminal" })
