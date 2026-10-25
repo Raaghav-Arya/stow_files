@@ -1,8 +1,8 @@
 # Pi customization backlog
 
-Local tickets for Claude Code-style workflows. PI-003 has a local implementation
-in progress; other features remain planning items. No third-party Pi packages
-have been installed.
+Local tickets for Claude Code-style workflows. PI-003 and PI-006/007/008/013/014
+have local implementations; see individual integration/validation status below.
+No third-party Pi packages have been installed.
 
 ## How to resume
 
@@ -19,20 +19,42 @@ or use extension shortcuts and the UI editor APIs where possible.
 
 Statuses: proposed -> ready -> in-progress -> done (or blocked).
 PI-003 is **in-progress** (first local implementation slice; see
-`pi/AGENTS-HUB.md`). Other tickets remain **proposed** unless marked otherwise.
+`pi/AGENTS-HUB.md`). PI-006/007/008/013/014 are **done**: implemented,
+parent-reviewed, linked for live discovery, and independently offline-tested.
+Completion records implementation, not unperformed physical terminal acceptance;
+those manual checks remain documented follow-ups. Existing sessions must
+reload/restart. The plan/hub
+safety adapter is integrated. See `pi/ORCHESTRATION-LIMITATIONS.md` and
+`node pi/tests/feature-integration.test.mjs` for combined discovery/dispatch checks.
+Other tickets remain **proposed** unless marked otherwise.
 
 ## Shared implementation policy
 
 - First use built-in Pi capabilities, then small, auditable local extensions.
-- Public GitHub plugins may be design references, not installed dependencies.
-  Popularity is not a security guarantee. Before selecting a reference, record
-  repository URL, commit, license, maintenance/API compatibility, and a short
-  security review. No popularity ranking has been researched yet.
+- **Using popular plugin code is acceptable and desirable** when it is
+  **non-malicious, safe, functional, and satisfies the user's requirements**.
+  Popular plugins are often well tested through broad real-world use and can
+  provide a good starting point for our implementations. Reuse suitable code
+  and functionality, not just design ideas; do not rewrite solely to avoid reuse.
+  The user's concern is preventing malicious/untrusted code execution, not
+  prohibiting reuse. Review source before running or integrating it; retain
+  required license notices and provenance when copying. Popularity and broad
+  real-world adoption are positive selection signals: mature, widely used plugins
+  often provide better-tested functionality and UX than a fresh local rewrite.
+  Prefer evaluating established popular implementations before reinventing them.
+  The concern is **blind adoption**, not popularity or reuse; popularity alone
+  does not replace source/dependency review, compatibility checks, or testing.
+  Record repository URL, commit, license, maintenance/API compatibility, and a
+  short security review. No popularity ranking has been researched yet; do not
+  claim a reference is the most popular without evidence.
 - Prefer official installed examples as initial API references. Examples are
   demonstrations, not production-ready guarantees.
 - If copying code, retain required license notices and provenance. Otherwise
   implement a minimal local design from documented contracts.
-- No downloaded code execution, automatic plugin updates, or implicit npm install.
+- Do not execute unreviewed downloaded code, enable automatic plugin updates,
+  or implicitly run npm install. Reviewed, suitable plugin code may be integrated
+  and tested under the reuse policy above; downloading code is not itself a ban
+  on using it.
 - Review dependencies as well as the extension itself. Local/generated code also
   requires review and tests; it is not trustworthy merely because it is local.
 - Respect project trust; importing Claude resources must not bypass it.
@@ -436,20 +458,34 @@ launch/switch UX, dependency/bootstrap commands, merge/cherry-pick preference.
 
 ## PI-006 — Prompt stashing (Ctrl+S)
 
-**Status:** proposed | **Size:** small/medium
+**Status:** done — implemented, reviewed, integrated; offline checks pass. Follow-up: reload/manual terminal acceptance | **Size:** small/medium
+
+**Implementation:** `extensions/prompt-stash/index.ts`, live link installed;
+usage/limits in `PROMPT-STASH.md`. Single memory slot, session-local;
+restore into empty input; nonempty input replaces the previous stash and clears
+the editor, as explicitly requested by the user. Submitting an ordinary interactive
+message automatically restores/consumes the stash into the empty editor without
+sending it; a newer nonempty draft is never overwritten by automatic restore.
+Expanded text preserved; cursor/undo/attachment bytes and restart recovery are
+not provided. Actual live discovery and registered Ctrl+S dispatch tested.
 
 **Current Pi:** Editor undo/history and queued message restore exist, but no
 prompt-stash action is listed in the installed keybinding reference.
 
-**Decisions needed:** Single-slot toggle versus stack/picker; persistence across
-sessions/restart; whether restoration swaps or combines a non-empty draft;
-attachments and cursor restoration requirements.
+**Implemented semantics:** Single-slot text stash, no persistence across session
+replacement/reload/restart. Ctrl+S on a new nonempty draft overwrites any prior
+stash (user-approved), with no swapping/combining; empty input restores/consumes
+the stash. User-requested automatic restoration occurs after interactive message
+submission, not assistant completion, and excludes RPC/extension input and
+slash/shell commands. Text paths only for attachments and no cursor restoration.
 
 **Acceptance:**
 - Ctrl+S stashes an unsent draft and clears the editor; an empty editor restores
-  the stash (proposed default, pending agreement).
-- Never overwrite a draft silently; preserve multiline/pasted content and define
-  attachment handling without promising unsupported editor state restoration.
+  the stash. Sending an interactive message auto-restores the stash into empty
+  input without submitting it; retain stash if a newer draft is already present.
+- Ctrl+S on nonempty input explicitly replaces the previous stash; notify when
+  replacing. Preserve multiline/pasted content and define attachment handling
+  without promising unsupported editor state restoration.
 - Show stash availability; do not submit or leak it into model context.
 - Compose with transcript-navigation editor; do not replace it independently.
 - Preserve Ctrl+S inside model/thinking/settings/session dialogs; test terminal
@@ -459,7 +495,10 @@ attachments and cursor restoration requirements.
 
 ## PI-007 — `/clear` alias for `/new`
 
-**Status:** proposed | **Size:** small
+**Status:** done — implemented, reviewed, integrated; 5 tests and actual offline RPC replacement pass. Follow-up: reload/manual terminal acceptance | **Size:** small
+
+**Implementation:** `.pi/agent/extensions/clear-alias/index.ts`; usage in
+`CLEAR-ALIAS.md`, plan/source review in `research/PI-007-*.md`.
 
 **Current Pi:** `/new` exists; `/clear` is not in the installed built-in list.
 Ctrl+C clearing editor text is unrelated.
@@ -477,14 +516,20 @@ Ctrl+C clearing editor text is unrelated.
 
 ## PI-008 — AskUser tool and polished question TUI
 
-**Status:** proposed | **Size:** medium
+**Status:** done — implemented, reviewed, integrated; 9 tests/typecheck and discovery pass. Follow-up: reload/manual visual acceptance | **Size:** medium
+
+**Implementation:** `extensions/ask-user/{index,model,ui}.ts`, live link installed.
+`ask_user` is model-callable, with a local stable-ID schema (not Claude wire
+compatibility), inline custom screen and mandatory review. RPC/headless return
+needs-user-input. Allowed for clarification in plan mode; usage in `ASK-USER.md`.
 
 **Current Pi:** Built-in extension APIs supply select/confirm/input/editor/custom
 UI. Official `question.ts` and `questionnaire.ts` demonstrate model-callable
 questions, but are not automatically enabled as a Claude-style AskUser tool.
 
-**Decisions needed:** Tool name/Claude schema compatibility; inline versus overlay
-presentation; preferred visual style and multi-question review behavior.
+**Implemented defaults:** `ask_user`, local non-Claude schema, themed inline
+custom screen with single/multi/text questions, back navigation and final review.
+User visual acceptance remains pending.
 
 **Acceptance:**
 - Structured single choice, multi-select and free text with option descriptions;
@@ -714,7 +759,18 @@ those features are implemented.
 
 ## PI-013 — Plan mode: explore, propose, review, then execute
 
-**Status:** proposed | **Size:** medium
+**Status:** done — free-switch/file-artifact workflow implemented; 16 unit + 5 hub tests, typecheck and offline RPC checks pass. Follow-up: reload/manual terminal acceptance | **Size:** medium
+
+**Implementation:** `extensions/plan-mode/`, live link installed. `/plan`
+enter/show/edit/approve/cancel/leave; Shift+Tab freely switches plan/normal.
+Restricted read tools plus local AskUser and a dedicated Markdown plan artifact;
+revision-specific approval remains an optional review action, not an exit gate.
+Markdown files live at `~/.pi/agent/plans/<session-id>/<revision-uuid>.md` (agent-dir
+override honored); `/plan show` presents the path and current content. Draft saves
+use new files to preserve older branch artifacts; external edits are read back.
+Existing footer displays mode status. `agents-hub/plan-policy.ts` vetoes entry with live
+children, guards launches/messages and waits for child cleanup on restricted
+branch restore. Usage/limitations in `PLAN-MODE.md`.
 
 **Request:** Add an explicit plan mode for investigating a task and preparing a
 reviewable implementation plan before making changes. This is distinct from
@@ -724,12 +780,20 @@ framework.
 **Current Pi:** Plan mode is not a default built-in workflow. An official
 `examples/extensions/plan-mode/` example exists as an implementation reference;
 review its current source/contracts and public alternatives before implementation.
-No reference plugin has been selected or installed for this ticket.
+The official example and OpenCode Plan/Agent implementations were reviewed as
+references; pinned provenance is in `research/PI-013-references.md`. No third-party
+plugin was installed. Reviewed code reuse is allowed under the shared policy.
 
-**Decisions needed:** Entry/exit command and workflow-compatible shortcut; plan
-storage (session entry versus dedicated file); whether a dedicated plan artifact
-may be written while other changes are restricted; approval/revision UX; context
-handoff into execution; behavior on session switching, branching and reload.
+**User decisions (supersede the original approval-gated/session-only design):**
+- Shift+Tab switches freely between planning and normal/build mode. Leaving plan
+  mode must not warn, request confirmation, or require plan approval. Explicit
+  mode switching is sufficient user intent; it does not claim plan approval or
+  start work automatically. Other permission gates remain independent.
+- Store plans as dedicated Markdown files, present their paths and contents for
+  user review, and support revisions. Session history can retain branch-local
+  snapshots/metadata but is not the sole plan artifact.
+- Shift+Tab replaces thinking-level cycling with user agreement; thinking-level
+  cycling is now Ctrl+Alt+T. Busy/child admission checks remain operational guards.
 
 **Acceptance:**
 - Explicit plan/execute state with clear command controls and PI-012 statusline
@@ -746,9 +810,10 @@ handoff into execution; behavior on session switching, branching and reload.
   steps, risks/open questions, dependencies and validation criteria.
 - Support clarification, revision, approval and cancellation. Approval must be
   an explicit user action, not inferred from model text or a classifier verdict.
-- Transition to execution only on explicit user request/approval, preserving the
-  approved plan and relevant findings. Approval is not blanket permission for
-  every future tool call; PI-004 and other applicable policies still apply.
+- Transition to normal/build on explicit user mode switching without warnings
+  or approval dialogs. Keep optional explicit plan approval distinct from mode
+  selection and preserve the plan and relevant findings. Neither action grants
+  blanket permission for future tool calls; PI-004 and other policies still apply.
 - Keep a lightweight task-progress view optional; no automatic role hierarchy,
   delegation loop or worktree creation. User/orchestrator chooses workspaces.
 - If subagents are used during planning, explicitly propagate compatible planning
@@ -768,3 +833,271 @@ orchestration framework or automatic worktree management.
 **References:** installed `examples/extensions/plan-mode/`, `docs/extensions.md`,
 `docs/security.md`, `docs/tui.md`; public implementations to research read-only
 and pin before adopting design details.
+
+## PI-014 — Ctrl+Y to accept picker options
+
+**Status:** done — implemented, integrated; offline tests pass. Follow-up: reload/manual terminal validation | **Size:** small
+
+**Implementation:** `extensions/picker-accept/input.ts` composed into the existing
+transcript editor; `keybindings.json` adds Ctrl+Y to `tui.select.confirm` alongside
+Enter. Usage/coverage/disable notes: `PICKER-ACCEPT.md`.
+
+**User decision:** Losing yank in favor of acceptance is explicitly approved,
+including confirmation/submission in text dialogs. Main-editor completion still
+uses Tab's no-submit path. Custom dialogs must honor the confirm action or opt in.
+
+**Request:** Allow Ctrl+Y to accept the highlighted picker/completion option,
+like Neovim completion acceptance and similar to the existing Tab behavior.
+Keep Tab available; Ctrl+Y is an additional binding, not a replacement.
+
+**Acceptance:**
+- Ctrl+Y accepts the highlighted option in supported pickers/completion menus;
+  match the existing acceptance behavior for that UI rather than submitting the
+  main prompt accidentally.
+- Audit built-in and extension pickers; document coverage and any unsupported
+  surfaces instead of claiming a global binding works everywhere.
+- Bind Ctrl+Y to confirmation, including text-dialog submission as explicitly
+  approved by the user. Preserve Tab and prevent accidental main-prompt submission
+  while accepting autocomplete; document custom-dialog coverage.
+- Compose with the existing transcript-navigation editor and PI-012 keybindings;
+  do not add a competing editor replacement.
+- Test Ctrl+Y and unchanged Tab behavior, filtering/navigation, cancellation,
+  empty/no-selection states, and forwarding through WezTerm/tmux/Neovim terminal.
+- Include usage and disable/rebinding instructions.
+
+**Dependencies:** Coordinate PI-012 (shortcut audit) and PI-008 (reusable pickers).
+
+## PI-015 — Context-aware shortcut conflict diagnostics
+
+**Status:** proposed | **Size:** small/medium for targeted core fix; medium for general scope support
+
+**Request:** Do not report a conflict when the same key belongs to mutually
+exclusive UI contexts. Keep Ctrl+S for prompt stashing in the main editor and
+model/thinking save or session sort in their respective dialogs. User prefers
+context-aware detection over moving those bindings.
+
+**Current Pi:** Installed 1.4.0 `core/extensions/runner.js` builds a flat key-to-
+action map in `buildBuiltinKeybindings()` and compares every extension shortcut
+against it in `getShortcuts()`. It distinguishes reserved overrides, but does not
+represent focus scopes. Consequently the editor-owned stash shortcut generates
+an `app.models.save` startup warning even though picker focus prevents dispatch
+to the editor. Actual stash registration/focus tests confirm the intended routing.
+
+**Effort / approach:** A narrowly audited distinction between editor actions and
+known picker-only actions is a small core change plus regression tests. General
+scope metadata, overlapping contexts and custom-dialog support require broader
+API/design work. The supported local extension API does not expose a diagnostic
+filter or scoped shortcut registration; prefer a maintained upstream Pi change.
+Do not patch installed `node_modules`, monkey-patch the runner, suppress all
+shortcut warnings, or change user bindings merely to hide this warning.
+
+**Acceptance:**
+- Audit actual dispatch/focus ownership before assigning action scopes; do not
+  assume every non-reserved action is picker-only.
+- Suppress diagnostics only for provably disjoint contexts. Preserve warnings
+  for overlapping editor actions and competing extension shortcuts, and retain
+  reserved-key rejection/precedence behavior.
+- Test Ctrl+S main-editor stashing versus model/scoped-model/thinking save and
+  session sort; no stash changes while a dialog owns focus. Include INPUT/NAV.
+- Test genuine conflicts, remapped keys, multiple actions sharing one key,
+  custom/unknown contexts (conservative handling), reload and `/hotkeys` output.
+- Verify the stash startup warning is absent without losing either contextual
+  binding. Keep runtime dispatch unchanged unless separately designed/tested.
+- If upstream API/version changes are required, record compatibility and upgrade
+  instructions; retain documented behavior on unsupported versions.
+
+**Dependencies:** PI-006 (stash), PI-012 (keybinding audit).
+**References:** Installed `docs/keybindings.md`, `docs/extensions.md`;
+`dist/core/extensions/runner.js` (`buildBuiltinKeybindings`, `getShortcuts`),
+interactive shortcut setup and focused picker dispatch; local
+`tests/prompt-stash.test.mjs` and `tests/feature-integration.test.mjs`.
+
+---
+
+## PI-016 — TODO list extension and visible task progress
+
+**Status:** proposed | **Size:** medium
+
+**Request:** Add a TODO/task-list extension for tracking work during planning and
+implementation, with a clear view of pending, in-progress, and completed tasks.
+Keep it lightweight and compatible with the existing editor, footer, plan mode,
+and optional Agents Hub; it must not introduce an automatic orchestration loop.
+
+**Mandatory implementation approach (user requirement):**
+- **MUST research and refer to established, popular existing implementations
+  before designing or implementing this feature.** Broad adoption is a positive
+  signal for useful UX and tested functionality; do not default to a fresh rewrite.
+- **Reuse suitable existing functionality and code wherever practical**, after
+  source/dependency review finds it non-malicious and it fits Pi's current APIs
+  and local workflow. Copying reviewed code is explicitly permitted; preserve
+  licenses, attribution, and pinned provenance. If reuse is unsuitable, document
+  concrete compatibility, maintenance, security, or scope reasons—not a blanket
+  prohibition on third-party code. Do not adopt or execute code blindly.
+- Compare the installed official Pi `examples/extensions/todo.ts` with popular
+  public Pi task-list extensions and OpenCode/Claude Code task-list behavior.
+  Verify actual repositories and adoption/maintenance evidence rather than
+  claiming a popularity ranking without research. Review source, not just READMEs.
+- Record repository URLs, pinned revisions, licenses, adoption/maintenance
+  evidence, security/dependency findings, and the reuse decision in
+  `research/PI-016-references.md` before integration. No implicit package install,
+  downloaded-code execution, or automatic updater.
+
+**Acceptance:**
+- Model-callable task updates and user-facing list/show/edit controls; stable
+  task IDs and pending/in-progress/completed states. Decide deletion, ordering,
+  cancellation and dependency behavior after evaluating existing implementations.
+- Show concise current progress with an expandable full list; compose with the
+  existing UI instead of installing a competing main editor/footer replacement.
+- Persist task state across reload/resume and reconstruct the active session
+  branch correctly. Define fork, tree navigation, clear/new-session, compaction,
+  and failed-write behavior; avoid leaking tasks between unrelated sessions.
+- Let the user inspect and correct tasks. Model updates are task bookkeeping,
+  not user approval, tool authorization, proof of validation, or permission to
+  start execution. Do not mark tasks complete solely from an optimistic claim.
+- Define a narrow plan-mode allowance for task bookkeeping if needed; it must
+  not bypass application-write restrictions or delegation policy. Plan Markdown
+  remains the reviewable plan artifact; document synchronization rather than
+  silently making two competing sources of truth.
+- Subagent integration is optional; if included, attribute ownership and handle
+  concurrent updates without losing tasks. Never auto-launch workers.
+- Test task CRUD/transitions, persistence/branch restoration, concurrent updates,
+  plan-mode interaction, cancellation, and UI composition. Cover interactive,
+  RPC/headless, narrow/Unicode/resize behavior; document usage and disable steps.
+
+**Dependencies:** PI-013 (plan artifact/workflow), PI-012 (status/UI composition),
+PI-003 (optional subagent task attribution).
+**Initial references to investigate:** installed `examples/extensions/todo.ts`,
+Pi extension/package ecosystem and OpenCode task tools. These are starting points,
+not an asserted popularity ranking or a preapproved implementation choice.
+
+---
+
+## PI-017 — Named model categories and workflow/subagent routing
+
+**Status:** proposed | **Size:** medium
+
+**Request:** Let the user assign configurable labels such as `small`, `build`,
+`general`, and `intensive` to model configurations and refer to those labels
+throughout Pi. Use higher-capability models where needed and cheaper models for
+routine work, without repeatedly selecting concrete models manually.
+
+**User examples (illustrative mappings, not hard-coded defaults):**
+- `intensive` → `sol-high` for investigating/planning a task.
+- `build` → `luna-high` for implementing the reviewed plan at lower cost.
+- `small` → `luna-low` for lightweight tasks such as preparing commits.
+- `general` → a user-selected everyday/default model configuration.
+
+**Research and reuse requirement:**
+- Before implementation, inspect prevalent model-tier, task-category, and
+  role-based routing patterns to decide which category labels are useful.
+  Starting points include Claude Code's model aliases and subagent model
+  selection, OpenCode's build/plan agent model configuration, and popular
+  OpenCode/Pi plugins with category-based model routing. Distinguish capability
+  tiers (`small`, `intensive`) from task roles (`plan`, `build`, `review`, `commit`)
+  rather than assuming one universal taxonomy.
+- Follow the shared policy: prefer suitable, reviewed existing code/functionality
+  over unnecessary reinvention. Record pinned source URLs, licensing,
+  adoption/maintenance evidence, compatibility/security findings, and reuse
+  decisions in `research/PI-017-references.md`. Do not claim a popularity ranking
+  or supported behavior without checking current implementations.
+- Recommend a small initial label set based on that research, but allow arbitrary
+  user-defined labels and mappings. Labels should not be vendor-specific.
+
+**Acceptance:**
+- Define each label as a concrete provider/model plus thinking/reasoning level
+  and any supported relevant settings. A label is a model configuration alias,
+  not merely a model ID; `high`/`low` reasoning variants may share a base model.
+- Provide user-level defaults and explicit project/workflow/agent overrides,
+  with documented precedence and validation. Explain where mappings are stored
+  and how the user lists, changes, and inspects effective resolutions.
+- Agents Hub/subagent definitions and launch requests can select a label; resolve
+  it consistently and report the actual provider/model/reasoning configuration.
+  Explicit concrete-model overrides remain available; define their precedence.
+- Plan mode can use `intensive` while planning, then switch to `build` for
+  implementation when the user leaves planning. Configure this routing rather
+  than hard-coding it. Merely selecting a model or switching modes must not
+  start a turn, grant tool permissions, or mark a plan approved.
+- Lightweight workflows such as commit preparation can explicitly select
+  `small`. Model routing does not authorize a commit/push or any other side
+  effect; existing user instructions and permission policies still apply.
+- Show both the active label and resolved model in suitable UI/status and
+  subagent inspection surfaces. Label names do not guarantee model capability,
+  actual price, or safety; mappings and cost assumptions remain user-controlled.
+- Specify what happens on manual model changes, mode changes, busy turns,
+  reload/resume, branching, and unavailable models. Avoid mid-turn switching,
+  silent expensive fallback, or overwriting an explicit user choice unexpectedly.
+  Missing/invalid labels must give an actionable error or use an explicitly
+  configured fallback whose resolution is visible.
+- Test label resolution and override precedence, provider/model/reasoning
+  validation, plan/build handoff, subagent routing, manual overrides, persistence,
+  unavailable-model behavior, and interactive/RPC/headless compatibility.
+- Document example mappings for the user's `sol-high`/`luna-high`/`luna-low`
+  workflow, usage, limitations, and how to disable automatic workflow routing.
+
+**Dependencies:** PI-003 (subagent model selection), PI-013 (plan/build modes),
+PI-012 (visible active label/model). Coordinate with existing model configuration
+and selection controls; do not introduce a competing provider registry.
+
+---
+
+## PI-018 — Drive external coding harnesses, especially Antigravity CLI
+
+**Status:** proposed | **Size:** medium; discovery first
+
+**Request:** Add a skill and/or extension that lets Pi delegate work to and drive
+other coding harnesses, prioritizing **Antigravity CLI**. The user has a Google
+Pro subscription they want to use through Antigravity's own supported workflow,
+not by connecting that subscription directly to Pi. The user reports that direct
+Pi use is not permitted by the applicable terms of service.
+
+**Compliance and discovery requirements:**
+- Verify the current official product/CLI name, availability, supported automation
+  interfaces, subscription eligibility, and applicable terms before implementation.
+  Do not assume that an interactive subscription also permits unattended CLI
+  automation or orchestration by another harness. Record dated official sources
+  and unresolved restrictions; if no permitted interface exists, mark that part
+  blocked rather than inventing a workaround or claiming compliance.
+- Keep authentication and model access inside the external harness's official
+  supported flow. Do not extract/reuse subscription tokens, impersonate its client,
+  proxy private endpoints, or expose a subscription-backed provider through Pi.
+  A CLI wrapper is not automatically exempt from service terms.
+- Research established integrations for driving external coding CLIs and reuse
+  suitable, reviewed code where practical under the shared implementation policy.
+  Record pinned provenance, licenses, maintenance/adoption evidence, dependency
+  review and compatibility in `research/PI-018-references.md`.
+
+**Acceptance:**
+- Choose the smallest supported integration: a skill documenting explicit CLI
+  usage when sufficient, or an extension/adapter for structured lifecycle and
+  results. Prefer documented noninteractive/structured interfaces; disclose
+  limitations if only interactive operation is supported. No implicit install.
+- Allow explicit task submission with cwd, bounded context, expected output,
+  timeout and cancellation. Return useful progress, final results, errors and
+  changed-file information without treating external output as trusted commands.
+- Make the selected external harness and workspace visible. Clarify whether work
+  shares the parent cwd or uses an explicitly chosen isolated workspace; never
+  silently create worktrees or allow concurrent conflicting file mutations.
+- Preserve the external harness's own permission, trust, confirmation and login
+  controls. Never auto-answer approval prompts or disable safeguards to make
+  automation work. Define interactive, RPC/headless and needs-user-input behavior.
+- Treat external execution as delegation, not a read-only tool. Integrate with
+  plan-mode restrictions and applicable Agents Hub policy; do not let another
+  harness bypass tool gates or user approval requirements.
+- Manage subprocess cleanup, output limits, cancellation, shutdown/reload,
+  session ownership and failure reporting. Do not imply that aborting the parent
+  automatically undoes filesystem changes or stops all descendants.
+- Avoid passing credentials or unnecessary private conversation/context to the
+  external tool. Explain account, billing/quota, telemetry and data-sharing
+  boundaries; distinguish external subscription usage from Pi model usage.
+- Design an adapter boundary for additional harnesses without claiming identical
+  capabilities. Antigravity is the first target, subject to verified support and
+  terms; other harnesses can be added independently.
+- Test with mocked/local fixtures first, then opt-in live acceptance using an
+  authorized installation/account. Cover submission, results, permission prompts,
+  cancellation, timeouts, cleanup and plan-mode refusal. Document setup, usage,
+  supported versions, limitations, compliance findings and disable instructions.
+
+**Dependencies:** PI-003 (delegation/lifecycle policy), PI-013 (planning gate),
+PI-017 (optional routing to a harness-backed task executor, not a subscription
+provider bridge). Availability and permitted automation must be established before
+committing to an implementation.
