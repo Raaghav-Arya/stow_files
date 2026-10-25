@@ -169,6 +169,22 @@ no event-bus spawn/control protocol or orchestrator is bundled. Observer failure
 are isolated from child execution. Do not instantiate extra unmanaged managers
 to bypass resource budgets.
 
+## Plan-mode integration
+
+`plan-policy.ts` cooperates with the local `/plan` extension. Explicit planning
+entry is vetoed until **all connected agents**, including idle agents, are
+stopped. Planning blocks hub launches and messages through tools, commands and
+the UI, with another check at queued message dispatch. Viewing/stopping agents
+remains possible from the hub. Restoring a restricted branch stops connected
+children and waits for process cleanup; plan-mode tools stay blocked if cleanup
+fails. Session replacement/reload retains the normal owned-process shutdown.
+This does not propagate a sandbox/policy into children: planning delegation is
+refused, not silently run unrestricted. Other Pi instances/external processes
+remain outside this adapter.
+
+Tests: `node --test tests/plan-hub-integration.test.mjs` and
+`node tests/feature-integration.test.mjs`.
+
 ## Runtime trust, limits and lifecycle
 
 Children use the installed Pi CLI in long-lived RPC processes. Only our messaging

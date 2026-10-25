@@ -256,7 +256,7 @@ try {
 
   const { default: extension } = await jiti.import(join(extensionDir, "index.ts"));
   const registrations = { tools: [], commands: [], shortcuts: [] };
-  extension({ registerMessageRenderer() {}, registerTool: (v) => registrations.tools.push(v), registerCommand: (name) => registrations.commands.push(name), registerShortcut: (name) => registrations.shortcuts.push(name), on() {} });
+  extension({ registerMessageRenderer() {}, registerTool: (v) => registrations.tools.push(v), registerCommand: (name) => registrations.commands.push(name), registerShortcut: (name) => registrations.shortcuts.push(name), on() {}, events: { on() {}, emit() {} } });
   assert.equal(registrations.tools[0].name, "agents");
   assert.deepEqual(registrations.shortcuts, ["alt+a"]);
   assert.deepEqual(registrations.commands, ["agents", "agent"]);
@@ -275,7 +275,7 @@ try {
     AgentManager.prototype.send = () => new Promise((resolve) => { finishSend = resolve; sendReady(); });
     const commands = new Map(), handlers = new Map();
     extension({ registerMessageRenderer() {}, registerTool() {}, registerShortcut() {}, registerCommand: (name, options) => commands.set(name, options),
-      on: (name, handler) => handlers.set(name, handler), events: { emit() {} } });
+      on: (name, handler) => handlers.set(name, handler), events: { on() {}, emit() {} } });
     const ctx = { mode: "tui", cwd: tmp, sessionManager: { getSessionId: () => "test-session" }, ui: {
       async custom() { if (++customCalls > 1) throw new Error("stale UI reopened"); return { type: "message", id: "test-agent" }; },
       async editor() { return "hello"; }, notify() {},

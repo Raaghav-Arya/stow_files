@@ -47,6 +47,8 @@ export function configFrom(value: unknown): HubConfig {
 }
 export interface Dependencies {
   root: string;
+  /** Called at admission and queued dispatch, including UI/command callers. */
+  assertCanWork?: () => void;
   connect: (agent: AgentRecord, event: (event: RecordEvent) => void, exit: (error: Error) => void) => Transport;
   parent: (agent: AgentRecord, text: string, kind: "mail" | "settled" | "error") => void;
 }
@@ -105,6 +107,7 @@ export class AgentManager {
       turns: agent.turns, tokens: agent.tokens, estimatedCost: agent.cost, error: agent.error };
   }
   async launch(input: Launch, signal?: AbortSignal): Promise<AgentRecord> {
+    this.deps.assertCanWork?.();
     if (signal?.aborted) throw new Error("Launch cancelled");
     if (this.closed) throw new Error("Agents Hub is shutting down");
     if (!input.task.trim() || input.task.length > 16_000) throw new Error("Task must be 1..16000 characters");
@@ -134,6 +137,7 @@ export class AgentManager {
       this.log(agent, { type: "launch", task: input.task, cwd, tools });
       this.changed(agent);
       if (this.closed || !this.live(agent)) throw new Error("Launch cancelled");
+      this.deps.assertCanWork?.();
       agent.transport = this.deps.connect(agent, (e) => this.event(agent, e), (e) => this.fail(agent, e));
       if (!this.live(agent) || this.closed) { await this.closeAgent(agent); throw new Error("Launch cancelled"); }
       agent.timer = setTimeout(() => this.fail(agent, new Error("Agent lifetime timeout reached")), this.config.timeoutMinutes * 60_000);
@@ -239,6 +243,7 @@ export class AgentManager {
     } catch (error) { this.fail(agent, error); }
   }
   async send(id: string, text: string, from: "main" | "user" = "user", delivery: "steer" | "followUp" = "steer"): Promise<Mail> {
+    this.deps.assertCanWork?.();
     const agent = this.get(id);
     if (!text.trim() || text.length > 16_000) throw new Error("Message must be 1..16000 characters");
     if (agent.mails.length >= 200) throw new Error("Agent mailbox budget exhausted");
@@ -246,6 +251,7 @@ export class AgentManager {
     agent.mails.push(mail);
     let submitted = false;
     const operation = agent.serial.then(async () => {
+      this.deps.assertCanWork?.();
       if (!this.live(agent) || !agent.transport || this.closed) throw new Error("Agent is not connected");
       this.text(agent, `\n[from ${from}] ${text}\n`);
       this.activity(agent, { kind: "message", label: from === "user" ? "You" : "Main session", text });

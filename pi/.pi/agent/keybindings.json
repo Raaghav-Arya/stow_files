@@ -4,9 +4,11 @@
   "tui.editor.cursorDown": ["down", "ctrl+n"],
   "tui.select.up": ["up", "ctrl+p"],
   "tui.select.down": ["down", "ctrl+n"],
+  "tui.select.confirm": ["enter", "ctrl+y"],
   "tui.altScreen.halfPageUp": "ctrl+u",
   "tui.altScreen.halfPageDown": "ctrl+d",
   "app.model.cycleForward": "alt+n",
+  "app.thinking.cycle": "ctrl+alt+t",
   "app.session.togglePath": "alt+p",
   "app.session.toggleNamedFilter": "alt+n",
   "app.models.toggleProvider": "alt+p"

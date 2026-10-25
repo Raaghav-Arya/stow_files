@@ -10,6 +10,7 @@ import { HubView, hubOverlayOptions, plain, type HubAction } from "./view.ts";
 import { discoverDefinitions } from "./definitions.ts";
 import { builtinTools } from "./tools.ts";
 import { renderAgentReport } from "./notifications.ts";
+import { installPlanPolicy } from "./plan-policy.ts";
 const localDir = dirname(fileURLToPath(import.meta.url));
 
 export default function (pi: ExtensionAPI) {
@@ -20,6 +21,7 @@ export default function (pi: ExtensionAPI) {
   let closeHub: (() => void) | undefined;
   let notifications = 0;
   let generation = 0;
+  const planPolicy = installPlanPolicy(pi, () => manager);
 
   const getManager = (ctx: ExtensionContext) => {
     context = ctx;
@@ -30,6 +32,7 @@ export default function (pi: ExtensionAPI) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     manager = new AgentManager(config, {
       root,
+      assertCanWork: () => planPolicy.assertCanWork(),
       connect(agent, onEvent, onExit) {
         const tools = [...agent.tools!, "message_parent"].join(",");
         return new RpcTransport(process.execPath, [join(getPackageDir(), "dist", "cli.js"),
