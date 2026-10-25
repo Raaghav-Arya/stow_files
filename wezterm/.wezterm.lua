@@ -5,7 +5,10 @@ if wezterm.config_builder then
   config = wezterm.config_builder()
 end
 
--- Leave keybindings and terminal behavior at their defaults; tmux handles multiplexing.
+-- Keep default keybindings except Alt+Enter's fullscreen toggle.
+config.keys = {
+  { key = "Enter", mods = "ALT", action = wezterm.action.DisableDefaultAssignment },
+}
 
 -- Match Neovim's theme, including any unused space around the terminal grid.
 config.color_scheme = "Catppuccin Mocha"
