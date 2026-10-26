@@ -1,0 +1,22 @@
+{
+  "name": "opencode-raaghav-plan-review",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test workflow.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./tui": "./tui.ts"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "^2.1.4",
+    "@opencode/client": "^2.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^5.8.2"
+  }
+}
