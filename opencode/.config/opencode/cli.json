@@ -4,6 +4,14 @@
     "opencode-vim-navigation@0.1.3",
     "./plugins/backslash-newline"
   ],
+  "keybinds": {
+    "prompt.stash": {
+      "key": "ctrl+s",
+      "preventDefault": true
+    },
+    "prompt.stash.pop": "ctrl+alt+s",
+    "prompt.stash.list": "<leader>p"
+  },
   "theme": {
     "name": "opencode"
   },
