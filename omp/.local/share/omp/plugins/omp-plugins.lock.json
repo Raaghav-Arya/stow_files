@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "@czottmann/pi-automode": {
+      "version": "1.17.0",
+      "enabledFeatures": null,
+      "enabled": true
+    }
+  },
+  "settings": {}
+}

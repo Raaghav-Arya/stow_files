@@ -1,0 +1,7 @@
+{
+  "name": "omp-plugins",
+  "private": true,
+  "dependencies": {
+    "@czottmann/pi-automode": "github:Raaghav-Arya/pi-automode#omp-release"
+  }
+}
