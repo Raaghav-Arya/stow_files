@@ -1,5 +1,5 @@
 -- CLI tool to use for AI sessions (change to "claude", "copilot", etc.)
-local CLI_TOOL = "pi"
+local CLI_TOOL = "opencode"
 
 vim.g.sidekick_cli_tool = CLI_TOOL -- expose for autocmds.lua
 local CLI_PREFIX = CLI_TOOL .. "_"
