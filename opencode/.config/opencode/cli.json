@@ -1,9 +1,8 @@
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "plugins": [
-    "opencode-vim-navigation@0.1.3",
-    "./plugins/backslash-newline",
-    "./plugins/plan-review"
+    "opencode-vim-navigation@0.1.4",
+    "./plugins/backslash-newline"
   ],
   "keybinds": {
     "prompt.stash": {
