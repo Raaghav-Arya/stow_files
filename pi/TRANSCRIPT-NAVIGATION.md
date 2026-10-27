@@ -71,7 +71,7 @@ From the stow repository root, with Pi and the npm package installed:
 PI_OFFLINE=1 node pi/tests/transcript-navigation.test.mjs
 PI_OFFLINE=1 node pi/tests/picker-accept.test.mjs
 PI_OFFLINE=1 node pi/tests/prompt-stash.test.mjs
-PI_OFFLINE=1 PI_AGENTS_HUB_CHILD=0 node pi/tests/feature-integration.test.mjs
+PI_OFFLINE=1 node pi/tests/feature-integration.test.mjs
 ```
 
 These regression suites import the installed npm extension and use the real Pi

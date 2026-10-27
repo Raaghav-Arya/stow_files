@@ -92,15 +92,13 @@ Cwd is not an access boundary; reading secrets/outside paths remains possible.
 Use OS/container isolation and avoid exposing credentials for stronger protection.
 Do not use this as a corporate mandatory enforcement layer.
 
-Delegation during planning is refused rather than pretending restrictions were
-inherited. The integrated `agents-hub/plan-policy.ts` adapter vetoes explicit
-entry while any connected child exists, including idle or terminating children.
-Stop them from Alt+A before `/plan`. Hub launch and send operations (including
-commands/UI and queued dispatch) also check planning state, not only tool gates.
-Restoring a planning/execution branch stops connected hub children and waits for
-process cleanup. All tools remain blocked until cleanup succeeds; failure leaves
-the gate closed. Session replacement/reload uses normal hub shutdown. Other
-external processes and unrelated Pi instances remain outside this integration.
+Main-session delegation tool calls during planning are refused rather than
+pretending restrictions were inherited. Subagents now come from the installed
+fork (see `SUBAGENTS.md`); the former custom-Hub safety adapter was removed.
+Plan mode does not veto entry based on fork activity or stop fork agents during
+branch restoration. It does not gate fork slash commands, mentions, schedules,
+workflows or extension-internal API calls. Stop delegated work explicitly before
+entering planning. Fork policy integration remains unverified/open PI-003 work.
 
 ## Lifecycle and noninteractive modes
 
@@ -133,29 +131,23 @@ Keep sensitive information out of them.
 - Emit `plan-mode:request-state` to request publication.
 - Observe `plan-mode:state`: immutable `{version:1, mode:'normal'|'plan'|'execute',
   hasPlan:boolean, revision:number}`. No plan text is broadcast.
-- Optional cooperative **synchronous** `plan-mode:before-enter` listener receives
-  `{block(reason:string):void}`; call block before yielding/awaiting to veto entry,
-  e.g. if a child agent remains alive. Pi's event bus does not await listeners;
-  this is not an async permission API or a security boundary.
-- `plan-mode:quiesce` is emitted on restricted branch/startup restoration.
-  Synchronous listeners register owned-process cleanup promises with
-  `{waitUntil(work:Promise<unknown>):void}`. The gate waits for all promises;
-  failures keep all tools blocked. Listeners must register before returning.
-- There is no API for external mode mutation or approval. On shutdown consumers
-  must handle their own session lifecycle rather than assume the last event is
-  live. The local hub adapter implements the veto/cleanup contracts.
+- There is no API for external mode mutation, approval or delegated-process
+  lifecycle enforcement. On shutdown consumers must handle their own session
+  lifecycle rather than assume the last event is live. Former custom-Hub
+  `before-enter`/`quiesce` hooks were removed with that implementation.
 
 ## Shortcut / terminal acceptance
 
 **Shift+Tab** switches modes while idle:
-- Normal or execution → restricted plan mode (including the delegated-agent veto).
+- Normal or execution → restricted plan mode for the main session.
 - Plan, with or without a draft → normal/build immediately, without warnings or
   confirmation. This does not mark a draft approved.
 - No model turn is started. Explicit `/plan approve` remains optional.
 
 Thinking-level cycling is remapped to **Ctrl+Alt+T** in `keybindings.json` to free
 Shift+Tab. Ctrl+P/N navigation, Ctrl+U/D scrolling, Ctrl+Q INPUT/NAV, Alt+N model
-cycle, Alt+A hub and reserved Ctrl+S/R are unchanged. Run `/reload` after updating.
+cycle and reserved Ctrl+S/R are unchanged. The former Alt+A Hub shortcut is no
+longer installed. Restart Pi (or explicitly run `/reload`) after updating.
 WezTerm → tmux → Neovim terminal forwarding and active-dialog ownership still
 need live audit. Standard editor/confirm dialogs
 are used for narrow/Unicode/theme/resize handling; we did not replace them.
@@ -167,11 +159,11 @@ terminal-stack acceptance remain outstanding. Offline tests are not live accepta
 Run `node --test tests/plan-mode.test.mjs` using the already installed Pi/jiti and
 typebox. Run `node tests/plan-mode-typecheck.mjs` for strict typechecking using an
 existing `tsc` (the temporary config path is printed). Also run
-`node --test tests/plan-hub-integration.test.mjs` and
-`node tests/feature-integration.test.mjs` for admission/queued-message guards,
-branch cleanup, discovery-order independence, cleanup failure, actual live-link
-discovery, footer statuses and isolated offline Pi `/plan` + `/clear` commands.
-Tests do not contact a model, execute downloaded code or install packages.
+`node tests/feature-integration.test.mjs` for actual live-link discovery, footer
+statuses and isolated offline Pi `/plan` + `/clear` commands with the fork's
+`/agents` registration. This smoke test loads the installed fork but does not
+launch agents, contact a model or install packages. Former custom-Hub integration
+tests have been removed; their guarantees do not transfer to the fork.
 Research/provenance: `research/PI-013-references.md`; pre-implementation plan:
 `research/PI-013-plan.md`.
 

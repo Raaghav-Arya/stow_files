@@ -1,121 +1,61 @@
-# Parallel ticket implementation — orchestration limitations
+# Delegation and orchestration limitations
 
-## Requested run
+## Current implementation
 
-Tickets: PI-013 plan mode, PI-014 Ctrl+Y picker acceptance, PI-007 `/clear`,
-PI-006 Ctrl+S prompt stashing, PI-008 AskUser TUI.
+Subagents are provided by the installed
+[Raaghav-Arya/pi-subagents](https://github.com/Raaghav-Arya/pi-subagents) fork,
+pinned in `.pi/agent/settings.json`. See `SUBAGENTS.md` for installation,
+migration, source pin and security caveats. The superseded custom Agents Hub and
+its plan-policy adapter/tests have been removed; commit `aebf606` preserves their
+historical checkpoint. Old custom-Hub connection caps, turn counters, delivery
+states and lifecycle test results do not describe the fork.
 
-## Observed limits and handling
+## Plan mode does not retroactively constrain agents
 
-### Four live connections, not five
+The local plan-mode tool gate blocks new non-allowlisted main-session tool calls,
+including delegation and steering tools. It does **not** stop already-running
+agents or gate other extension slash commands, mention handlers, schedules,
+workflows or extension-internal APIs. Main-session idle state is not proof that
+background work has stopped. The removed Hub's veto, queued-send checks and
+restricted-branch cleanup are not implemented for the fork.
 
-The first four launches succeeded. The AskUser launch was rejected with:
+Stop delegated work explicitly before entering plan mode. Do not present local
+plan mode as an OS sandbox or mandatory enforcement layer. Fork-specific policy
+integration and its acceptance tests remain open PI-003 work.
 
-> Agent connection limit reached; stop an existing agent first
+## Workspaces, capabilities and user input
 
-The loaded Agents Hub defaults to `maxConcurrent: 4`. Starting, running, idle,
-and still-terminating connections count. There is no tool action to change the
-loaded manager's configuration. A config change/reload would stop the agents
-already working; no reload or unmanaged process was used to bypass the budget.
+A working directory and tool allowlist do not sandbox filesystem/network access.
+Shared-checkout writers can conflict with each other and with pre-existing user
+changes. Choose non-overlapping ownership or explicit isolation; no automatic
+worktree, commit, merge or cleanup policy is imposed by this local configuration.
+Review fork definitions and nested delegation grants: a child's capabilities need
+not be the same as its parent's. Do not assume local custom tools/MCP policies
+are inherited or that a read-only parent makes its children read-only.
 
-Handling: AskUser was queued until `/clear` completed and its full report was
-read; the parent stopped that idle connection, then successfully launched
-AskUser. Thus all five could not run simultaneously in this runtime. Future runs can configure `~/.pi/agent/agents-hub.json` before
-starting/reloading (documented bound: 1–32 connections).
+Child questions must be relayed through a supported parent/user interaction path;
+no agent may invent a user's answer, confirmation or approval. A status/progress
+report is not evidence that an operation completed. Read the actual result and
+verify edited files and commands before reporting completion.
 
-### Clarification is mediated, not a direct agent-to-user dialog
+## Validation boundaries
 
-Each child has `message_parent`, and can ask clarification questions. The parent
-relays questions to the user and replies with `agents send`; the user can also
-message a child through Alt+A / Agents Hub. Children do not inherit custom tools
-or extensions, so they cannot directly use the AskUser tool being implemented.
-No user answer or approval may be invented.
+`tests/feature-integration.test.mjs` checks local extension discovery, Ctrl+S
+registration/dispatch, footer status and isolated offline Pi `/plan` shell gating
+and `/clear`, with `/agents` registered from the fork. It does not exercise model
+requests or establish fork lifecycle/recovery, inheritance, accounting, nested
+admission or notification reliability. Those need focused review/testing against
+the fork rather than reuse of deleted custom-Hub tests.
 
-### Hub delivery is currently active by default and policy configuration is incomplete
+Offline fixtures cannot establish visual/input acceptance through
+WezTerm → tmux → Neovim. Regular/fullscreen rendering, IME, resize and terminal
+key forwarding remain separate manual checks. Restart/reload is user initiated;
+source edits do not replace an already-loaded runtime.
 
-The Agents Hub implementation now durably records typed reports/lifecycle events
-and can wake eligible idle recipients at supported boundaries. Automatic wakeups
-are passive by default; `agents-hub.json` can explicitly opt into active delivery,
-with validated coalescing, batch/context limits, and per-recipient/root automatic
-call allowances. Explicit drain is separate from those allowances. Holds, pending
-events, snapshots, and unknown outcomes remain inspectable/reconcilable through
-the Hub. Immutable task/revision result snapshots and matching addressed model-read
-consumption now exist, but lifecycle/report deduplication, complete hold-release,
-branch ownership, disposal, retention, and full interruption/persistence race
-coverage remain PI-003 work. Read full reports rather than relying on notification
-tails.
+## Historical parallel ticket run
 
-### Shared checkout is not automatic isolation
-
-The hub supplies cwd and tools, not Git worktree management or merge/conflict
-handling. Agents share the stow repository, which already has unrelated user
-changes. Each agent owns a distinct new extension directory, test prefix,
-research prefix, and usage document. Existing editor/keybindings/settings,
-BACKLOG updates, and live symlinks are reserved for parent integration.
-No commits, pushes, automatic installs, or cleanup of unrelated files are allowed.
-
-### Source research and validation
-
-Children have bash/network-capable commands but no dedicated browser/search tool.
-They must fetch and inspect actual public implementation source, record immutable
-commit/license/source paths, and distinguish source review from README review.
-Downloading source for inspection does not authorize installing/executing it.
-Network failures or inability to find a suitable reference must be reported,
-not replaced with fabricated research or popularity claims.
-
-Automated offline tests cannot establish visual/input acceptance through the
-user's WezTerm → tmux → Neovim terminal stack. No model calls, live reloads, or
-interactive terminal takeover are authorized as part of child testing.
-
-### Turn/lifetime budgets
-
-The loaded hub caps each child at 40 cumulative model/tool turns and a 30-minute
-lifetime. Research and implementation consume that budget together; follow-up
-messages do not reset it. Parent reminded agents approaching the cap to finish
-reports and tests. This is not an autonomous retry/resume scheduler.
-
-Observed: AskUser sent its implementation handoff reporting 8 passing offline
-checks and a strict typecheck, then hit `Agent turn limit reached`. Its work is
-on disk, but that runtime error is not a clean final settlement or parent review.
-Parent subsequently reviewed the files, reran the tests/typecheck, added a
-key-release regression check, and verified actual live tool discovery. The
-agent's turn-limit failure did not erase its implementation.
-
-### Plan-mode policy does not retroactively constrain children
-
-The plan-mode agent found that main-session idle state does not prove child
-agents are idle/stopped. Children do not inherit newly loaded extension gates,
-and a new parent policy cannot interrupt arbitrary already-running child work.
-Plan mode therefore requires parent/hub integration to veto entry while active
-children exist, and must deny unsafe new delegation. This is a required safety
-integration, not something a system prompt can fix.
-
-Completed parent integration: `agents-hub/plan-policy.ts` vetoes explicit entry
-with connected children (including idle), checks manager launch/send admission
-and queued dispatch, and stops/waits for children on restricted branch restore.
-All plan-mode tools remain blocked until cleanup succeeds. Five integration tests
-cover discovery order, idle/active entry veto, restoration, queued sends and
-cleanup failure. Existing processes outside this hub remain out of scope.
-
-## Progress
-
-- All five agents successfully launched, with at most four connected at once.
-- `/clear`: child implementation complete; child reports 5/5 offline tests pass.
-  Report read; idle connection stopped to free AskUser's slot. Parent integration
-  and isolated actual Pi `/clear` replacement validation subsequently completed.
-- Running at AskUser launch: plan mode, Ctrl+Y, Ctrl+S, AskUser.
-- IDs: plan `f38a181a-ecea-4af6-a8b4-534b7e12c796`, picker
-  `d1d60b54-8297-493b-8206-5cd6fb611b2f`, clear
-  `5748532b-4574-419a-b6f7-4a579f5c0b1e`, stash
-  `11768188-7e71-4631-ba6e-bbd1c4b63f57`, AskUser
-  `00d8b38e-e3cc-4112-96f7-9141673e6ec7`.
-- Every agent instructed to write a plan before coding, inspect online plugin
-  source, add tests and usage/disable notes, and report questions/limitations.
-- All five implementations now reviewed and live-linked. The initial missing live
-  links explained the user's nonworking Ctrl+S and absent `/plan` command.
-- `tests/feature-integration.test.mjs` verifies actual live discovery, real
-  shortcut-registry Ctrl+S dispatch, footer status display and combined isolated
-  offline Pi `/plan` shell gate and `/clear` replacement. All independent feature
-  suites/typechecks were rerun; no model call or live reload was made.
-- Existing sessions still require reload/restart. Physical terminal-stack and
-  visual/IME acceptance remain user validation, not claimed by offline tests.
+PI-006/007/008/013/014 were originally implemented using the removed custom Hub.
+Their individual source, tests and research remain; their delivery does not imply
+current fork policy compatibility. The old run's four-connection and 40-turn
+limits, failed-worker recovery notes and old integration guarantees are historical
+only, available in commit `aebf606`, not active operating instructions.

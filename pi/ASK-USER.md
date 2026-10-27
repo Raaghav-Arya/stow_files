@@ -138,7 +138,7 @@ session history.
 TUI gets the full custom component; RPC explicitly returns `needs-user-input`
 because this multi-question custom screen is unsupported by the RPC UI protocol.
 Print/JSON also return `needs-user-input`, never fabricated approval or a hung
-terminal promise. RPC clients/Agents Hub parents must relay questions to the user
+terminal promise. RPC clients and parent agents must relay questions to the user
 and convey the user's response explicitly; this extension does not create an
 automatic child-to-parent question broker. Do not retry unavailable UI in a loop.
 

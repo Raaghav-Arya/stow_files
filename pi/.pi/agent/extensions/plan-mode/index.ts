@@ -10,10 +10,9 @@ export default function planMode(pi: ExtensionAPI) {
   let state: PlanState = initial();
   let epoch = 0;
   let alive = false;
-  let quiescing = false;
 
   function publish(ctx?: ExtensionContext) {
-    ctx?.ui.setStatus("plan-mode", state.mode === "normal" ? undefined : `Plan: ${quiescing ? "stopping agents" : state.mode === "plan" ? "review" : "execute"} r${state.revision}`);
+    ctx?.ui.setStatus("plan-mode", state.mode === "normal" ? undefined : `Plan: ${state.mode === "plan" ? "review" : "execute"} r${state.revision}`);
     pi.events.emit("plan-mode:state", snapshot(state));
   }
   function save(next: PlanState, ctx: ExtensionContext) {
@@ -54,23 +53,11 @@ export default function planMode(pi: ExtensionAPI) {
     if (markdown !== state.markdown) save({ ...state, markdown, revision: state.revision + 1 }, ctx);
     return markdown;
   }
-  async function reload(ctx: ExtensionContext) {
+  function reload(ctx: ExtensionContext) {
     state = restore(ctx.sessionManager.getBranch());
-    const token = ++epoch;
+    epoch++;
     alive = true;
-    quiescing = state.mode === "plan";
-    publish(ctx); // Block new child work before waiting for owned-process cleanup.
-    if (quiescing) {
-      const pending: Promise<unknown>[] = [];
-      pi.events.emit("plan-mode:quiesce", { waitUntil: (work: Promise<unknown>) => pending.push(Promise.resolve(work)) });
-      try {
-        await Promise.all(pending);
-        if (alive && epoch === token) { quiescing = false; publish(ctx); }
-      } catch (error) {
-        // Keep all tool calls blocked if an owned child could not be closed.
-        ctx.ui.notify(`Plan mode could not stop delegated work; tools remain blocked. ${String(error)}`, "error");
-      }
-    }
+    publish(ctx);
   }
   pi.events.on("plan-mode:request-state", () => publish());
   pi.on("session_start", (_event, ctx) => reload(ctx));
@@ -78,7 +65,6 @@ export default function planMode(pi: ExtensionAPI) {
   pi.on("session_shutdown", (_event, ctx) => { alive = false; epoch++; ctx.ui.setStatus("plan-mode", undefined); });
 
   pi.on("tool_call", event => {
-    if (quiescing) return { block: true, reason: "Plan mode is waiting for delegated agent cleanup. All tool calls remain blocked." };
     if (blocked(state, event.toolName)) return { block: true, reason: `Plan mode blocks ${event.toolName}. Only read, grep, find, ls, ask_user and plan_draft are permitted; no shell, delegation or unknown tools. User can return to normal mode with Shift+Tab or /plan leave.` };
   });
   pi.on("user_bash", () => {
@@ -121,12 +107,8 @@ export default function planMode(pi: ExtensionAPI) {
     if (!["enter", "edit", "approve", "cancel", "leave"].includes(action)) {
       ctx.ui.notify("Usage: /plan [enter|show|edit|approve|cancel|leave]", "info"); return;
     }
-    if (!alive || quiescing || !ctx.isIdle()) { ctx.ui.notify("Stop current work and wait for delegated cleanup before changing plan mode.", "warning"); return; }
+    if (!alive || !ctx.isIdle()) { ctx.ui.notify("Stop current work before changing plan mode.", "warning"); return; }
     if (action === "enter" || action === "cancel") {
-      const reasons: string[] = [];
-      // Cooperative synchronous veto only. Not a security boundary for extensions.
-      pi.events.emit("plan-mode:before-enter", { block: (reason: string) => reasons.push(String(reason)) });
-      if (reasons.length) { ctx.ui.notify(`Cannot enter plan mode: ${reasons.join("; ")}`, "warning"); return; }
       save({ ...state, mode: "plan" }, ctx);
       return;
     }

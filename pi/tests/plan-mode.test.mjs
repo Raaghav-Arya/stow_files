@@ -46,10 +46,7 @@ test('Shift+Tab preserves the draft without approval and respects admission guar
   const f = fixture(); await f.ready;
   const toggle = () => f.shortcuts['shift+tab'].handler(f.ctx);
   f.setIdle(false); await toggle(); assert.equal(f.saved.length, 0);
-  f.setIdle(true);
-  f.bus.set('plan-mode:before-enter', ({ block }) => block('child running'));
-  await toggle(); assert.equal(f.saved.length, 0);
-  f.bus.delete('plan-mode:before-enter'); await toggle();
+  f.setIdle(true); await toggle();
   await f.tools.plan_draft.execute('id', { markdown: 'Reviewed draft' }, undefined, undefined, f.ctx);
   f.ctx.ui.confirm = async () => assert.fail('Mode switching must not confirm');
   f.ctx.ui.notify = () => assert.fail('Mode switching must not warn');
@@ -112,7 +109,7 @@ test('state draft/approval validation and preservation', () => {
 });
 test('strict gate covers bash, custom/MCP, delegation and nested calls', async () => {
   const f = fixture(); await f.run('');
-  for (const name of ['bash', 'edit', 'write', 'agents_hub', 'subagent', 'mcp__read', 'questionnaire', 'codemode', 'tool_search', 'unknown']) {
+  for (const name of ['bash', 'edit', 'write', 'Agent', 'SubagentWorkflow', 'steer_subagent', 'get_subagent_result', 'mcp__read', 'questionnaire', 'codemode', 'tool_search', 'unknown']) {
     for (const parentToolCallId of [undefined, 'parent']) assert.equal(f.hooks.tool_call({ toolName: name, input: { command: 'ls; curl x' }, parentToolCallId }).block, true);
   }
   for (const name of S.PLAN_TOOLS) assert.equal(f.hooks.tool_call({ toolName: name }), undefined);
@@ -161,13 +158,12 @@ test('busy transitions refused and asynchronous approval cannot cross shutdown/r
   f.hooks.session_shutdown({}, f.ctx); finish(true); await pending;
   assert.equal(f.saved.at(-1).data.mode, 'plan');
 });
-test('state event payload is immutable and synchronous entry veto supported', async () => {
+test('read-only state events remain immutable across transitions', async () => {
   const f = fixture(); let state;
   f.bus.set('plan-mode:state', value => { state = value; });
   f.bus.get('plan-mode:request-state')(); assert.equal(state.mode, 'normal'); assert.ok(Object.isFrozen(state));
-  f.bus.set('plan-mode:before-enter', ({ block }) => block('Stop active child first'));
-  await f.run('enter'); assert.equal(f.saved.length, 0);
-  f.bus.delete('plan-mode:before-enter'); await f.run('enter'); assert.equal(state.mode, 'plan');
+  await f.run('enter'); assert.equal(state.mode, 'plan'); assert.ok(Object.isFrozen(state));
+  await f.run('leave'); assert.equal(state.mode, 'normal');
 });
 test('revision during approval invalidates old confirmation', async () => {
   const f = fixture(); await f.run('enter');

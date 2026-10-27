@@ -12,9 +12,6 @@
   "followUpMode": "all",
   "hideThinkingBlock": true,
   "doubleEscapeAction": "tree",
-  "extensions": [
-    "!**/agents-hub/**"
-  ],
   "packages": [
     "npm:pi-vim-navigation",
     "git:github.com/Raaghav-Arya/pi-subagents@ca93a5247e72e7053fcd10bea7125d6c4205f949"

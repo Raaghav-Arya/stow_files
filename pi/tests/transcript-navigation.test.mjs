@@ -53,13 +53,13 @@ input("\x15"); input("\x04"); // Existing half-page bindings still reach fullscr
 assert.equal(calls[0] < 0, true);
 assert.equal(calls[1] > 0, true);
 calls.length = 0;
-let hubOpens = 0;
+let shortcutCalls = 0;
 editor.onExtensionShortcut = (data) => {
-  if (data === "\x1ba") { hubOpens++; return true; }
+  if (data === "\x1ba") { shortcutCalls++; return true; }
   return false;
 };
 input("\x1ba");
-assert.equal(hubOpens, 1); // Alt+A remains usable in NAV mode.
+assert.equal(shortcutCalls, 1); // Extension shortcuts are forwarded in NAV mode.
 input("x"); input("\r"); input("\x1b[200~accidental paste\x1b[201~");
 assert.equal(editor.getText(), "saved draft");
 input("i");
