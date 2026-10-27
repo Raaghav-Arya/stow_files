@@ -39,6 +39,7 @@ const states: Record<AgentState, { icon: string; label: string; color: ThemeColo
   interrupted: { icon: "Ⅱ", label: "INTERRUPTED", color: "warning" },
   "waiting-input": { icon: "?", label: "NEEDS INPUT", color: "warning" },
   limited: { icon: "!", label: "LIMITED", color: "warning" },
+  "work-failed": { icon: "×", label: "WORK FAILED · CONNECTED", color: "error" },
   failed: { icon: "×", label: "FAILED", color: "error" },
   stopped: { icon: "○", label: "STOPPED", color: "muted" },
 };

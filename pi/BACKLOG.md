@@ -18,8 +18,9 @@ the main editor. Avoid a second competing editor replacement; compose features
 or use extension shortcuts and the UI editor APIs where possible.
 
 Statuses: proposed -> ready -> in-progress -> done (or blocked).
-PI-003 is **in-progress** (first local implementation slice; see
-`pi/AGENTS-HUB.md`). PI-006/007/008/013/014 are **done**: implemented,
+PI-003 is **in-progress** (implementation direction changed to the installed
+`Raaghav-Arya/pi-subagents` fork; custom Hub disabled and further development
+paused. See the adoption checkpoint below; prior custom-Hub work is retained). PI-006/007/008/013/014 are **done**: implemented,
 parent-reviewed, linked for live discovery, and independently offline-tested.
 Completion records implementation, not unperformed physical terminal acceptance;
 those manual checks remain documented follow-ups. Existing sessions must
@@ -176,7 +177,7 @@ navigation contracts, `examples/extensions/git-checkpoint.ts`.
 
 ## PI-003 — Subagent plumbing, interactive Agents Hub and communication
 
-**Status:** in-progress — initial plumbing and redesigned UI implemented; lifecycle/messaging completion and user validation remain | **Size:** large; sliceable
+**Status:** in-progress — adopt the installed `Raaghav-Arya/pi-subagents` fork as the active implementation; custom Hub disabled and its roadmap paused. Fork startup verified offline; requirement-gap review and interactive acceptance remain. Prior M1/partial M2 work retained, not declared complete | **Size:** large; sliceable
 
 **Implementation:** `pi/.pi/agent/extensions/agents-hub/`, personal definitions
 under `pi/.pi/agent/agents/`, usage/limits/provenance in `pi/AGENTS-HUB.md`.
@@ -187,7 +188,69 @@ model requests. User-authorized live adversarial and source-research agents were
 launched using the pre-correction runtime; reports and follow-up messaging worked.
 Source-review findings/provenance: `pi/research/PI-003-subagents.md`.
 
-### Finished in the current implementation
+### Fork adoption checkpoint — current direction
+
+- User chose to stop investing in the custom Hub and build on
+  [Raaghav-Arya/pi-subagents](https://github.com/Raaghav-Arya/pi-subagents),
+  forked from `tintinweb/pi-subagents`. No custom fork tweaks have been made.
+- Installed globally through Pi's package manager from the fork, pinned to
+  reviewed commit `ca93a5247e72e7053fcd10bea7125d6c4205f949` (v0.22.0).
+  `pi/.pi/agent/settings.json` records the package source and excludes
+  `!**/agents-hub/**` to avoid competing `/agents` registrations.
+  Custom Hub source, tests, research and persisted sessions are preserved.
+- Dependency lifecycle scripts were disabled for installation; npm reported
+  zero known vulnerabilities. The source review was partial, not a full security
+  audit or certification that the plugin/dependencies are non-malicious.
+- A separate offline, no-session RPC startup returned `/agents` registered from
+  the fork's `src/index.ts`, with no stderr errors and no model request.
+  This validates discovery/loading, not interactive behavior, provider resilience,
+  feature parity or compatibility with our plan-mode policy adapter.
+- **Next:** accept the fork interactively and map actual requirements against its
+  behavior before choosing focused fork changes. Review existing custom agent
+  definitions and plan-mode/delegation enforcement for compatibility. Do not
+  assume the custom Hub's policy hooks, durable messaging or task-budget
+  guarantees automatically apply to the fork. Update the pinned revision when
+  deliberately adopting future fork changes; do not silently follow upstream.
+- Custom batches A–D below are historical unfinished work, **not the active
+  execution queue**. Do not restart the failed worker or resume that roadmap
+  without a renewed decision. PI-003 stays open pending fork acceptance/gap review.
+
+### Historical custom-Hub execution / recovery checkpoint (2026-10-27)
+
+- Luna/high implementation worker `84bc914c-0d79-41d9-ba80-8b31594e22cf`
+  failed at task revision/turn **226 of 1,000**; it is not currently running.
+  The final assistant event recorded `stopReason: "error"` with
+  `errorMessage: "terminated"`, immediately followed by the loaded manager's
+  fatal failure record. This is not evidence of turn-budget exhaustion or a
+  deliberate parent stop. The underlying cause of the request termination is
+  unknown; do not describe it as a proven OS/process kill.
+- The parent session still had the older Hub runtime loaded. Saved source fixes
+  do not hot-update that manager: its old assistant-error handling closed the
+  child, reproducing the failure mode being fixed. No parent reload was performed.
+- Saved work remains in the working tree, including partial M2 immutable result
+  snapshots/addressed consumption, passive-default notification configuration,
+  scoped holds and lifecycle/persistence changes. These are **not** a reviewed,
+  complete Batch A delivery; the worker did not produce a final accepted handoff.
+- After failure, the parent independently reran
+  `tests/agents-hub*.test.mjs`, `tests/plan-hub-integration.test.mjs`,
+  `tests/feature-integration.test.mjs`, `tests/typecheck-agents-hub.mjs` and
+  `tests/transcript-navigation.test.mjs`, from `pi/` with
+  `PI_AGENTS_HUB_CHILD=0 PI_OFFLINE=1`: all **16 entry points passed**, including
+  Plan/Hub integration **5/5** and Hub typecheck. `git diff --check` also passed.
+  The known Ctrl+S shortcut-conflict warning remains. Passing current tests does
+  not establish the unfinished race, ownership, retention or recovery guarantees.
+- **If custom-Hub development is explicitly resumed:** review saved Batch A source and its incomplete coverage against
+  section 6 of `research/PI-003-plan.md`; deliberately recover the persisted
+  conversation or hand off its checkpoint to a verified Luna/high writer.
+  Inspect the last operation and current files before continuing: no blind prompt
+  replay, automatic retry loop, task-budget reset or unmanaged replacement
+  supervisor. Do not assume persisted state proves a live process or supported
+  reconnection. Then finish/review Batch A before B (M3), C (M4), D (M5/M6).
+- No commit, push, dependency installation, parent reload, provider-backed
+  acceptance test or physical-terminal acceptance was performed. Unrelated
+  AskUser, Bash, OpenCode and WezTerm changes remain outside PI-003 scope.
+
+### Finished in the retained custom-Hub implementation (disabled)
 
 - [x] Background, long-lived Pi RPC child processes; stable IDs and session-local
   registry, configurable connection/launch/turn/lifetime limits.
@@ -288,12 +351,9 @@ Source-review findings/provenance: `pi/research/PI-003-subagents.md`.
 
 ### Additional resilience feedback (new)
 
-- [ ] A provider/model/request failure must not immediately close a healthy child
-  process. Record recoverable failed work and keep transport connected where safe,
-  so the user can deliberately retry/continue with preserved context and budgets.
-  Do not use blind retry loops or reset task budgets; make uncertain request
-  outcomes explicit. Fatal child-process, protocol, or required-persistence failures
-  still require cleanup and must not be presented as recoverable live sessions.
+- [x] M1 provider-work failure is distinct from transport failure: provisional assistant errors wait for `agent_settled` so Pi retry/overflow recovery can finish; terminal work failure preserves connected context/budget as `work-failed`, holds inbound automatic delivery, and requires deliberate continuation. Request-command rejection is typed separately from uncertain acknowledgement; neither alone closes a healthy child. Fatal process/protocol/persistence failures remain fatal. Offline regression coverage exercises built-in retry, overflow retry, exhausted provider error, continuation budget preservation, command rejection, unknown acknowledgement and process exit.
+- [ ] Extend M1 coverage for concurrent interrupt/send settlement races and required-persistence failures, and validate at every registered command/UI/IPC continuation path.
+- [ ] M2 is partial: append-only result snapshots and model-facing addressed consumption exist, with passive-default active opt-in and bounded policy. Explicit-report/settlement deduplication, complete exact revision lifecycle coverage, root-generation ownership, disposal/retention hardening and required adapter acceptance remain. M3–M6 remain as detailed in `research/PI-003-plan.md`: branch/session ownership and safe retained reopening; policy-aware shared controls and addressed routing; transcript/chat integration; exact 1,000-turn admission/accounting/resources and complete user docs. Do not mark the ticket complete.
 
 ### Remaining UX and validation
 
@@ -357,10 +417,8 @@ execution; further UI/keybinding preferences. These decisions must not reintrodu
 workspace policy or a mandatory workflow engine.
 
 **Slices / progress:**
-- PI-003a — **partial:** launch/registry/limits/termination done; interrupt versus
-  close, persisted-session resume and recovery remain.
-- PI-003b — **partial:** main/user-child messaging and passive child-parent reports
-  done; sibling addressing, configurable wakeups and durable delivery policy remain.
+- PI-003a — **partial:** launch/registry/limits/termination and an interrupt operation exist; provider-work failures now preserve a healthy connection, but interrupt race coverage, persisted blocked/limited/work-failure recovery guarantees and full explicit resume validation remain.
+- PI-003b — **partial:** main/user-child messaging and durable reports exist; wakeups are now passive by default with validated active opt-in, bounded policy and immutable result snapshots. Full retention/ownership/deduplication semantics and sibling addressing remain.
 - PI-003c — **partial:** themed Alt+A hub and dialog-based interaction done;
   user/live terminal validation, inline composer and optional mouse UX remain.
 - PI-003d — **partial:** configuration/docs and observable manager primitives done;

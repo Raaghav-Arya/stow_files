@@ -31,14 +31,19 @@ message a child through Alt+A / Agents Hub. Children do not inherit custom tools
 or extensions, so they cannot directly use the AskUser tool being implemented.
 No user answer or approval may be invented.
 
-### Reports do not automatically wake an idle parent
+### Hub delivery is currently active by default and policy configuration is incomplete
 
-Child reports enter the parent's next-turn context, rather than independently
-starting a parent model turn. The parent must use read/wait and relay questions;
-finishing a parent response does not guarantee immediate automatic processing of
-later child questions. Read full reports rather than rely on notification tails.
-The documented passive-injection cap is 24 reports per runtime; further reports
-remain available through read/logs/hub.
+The Agents Hub implementation now durably records typed reports/lifecycle events
+and can wake eligible idle recipients at supported boundaries. Automatic wakeups
+are passive by default; `agents-hub.json` can explicitly opt into active delivery,
+with validated coalescing, batch/context limits, and per-recipient/root automatic
+call allowances. Explicit drain is separate from those allowances. Holds, pending
+events, snapshots, and unknown outcomes remain inspectable/reconcilable through
+the Hub. Immutable task/revision result snapshots and matching addressed model-read
+consumption now exist, but lifecycle/report deduplication, complete hold-release,
+branch ownership, disposal, retention, and full interruption/persistence race
+coverage remain PI-003 work. Read full reports rather than relying on notification
+tails.
 
 ### Shared checkout is not automatic isolation
 

@@ -111,6 +111,8 @@ export class DurableMailbox {
   }
   setState(eventId: string, state: HubEventState, detail?: string, deliveryId?: string): EventStateRecord {
     if (!this.eventsById.has(eventId)) throw new Error(`Unknown mailbox event: ${eventId}`);
+    const previous = this.latestState.get(eventId)?.state;
+    if (previous === "consumed" && state !== "consumed") throw new Error("Consumed notification state is terminal");
     const record: EventStateRecord = { version: 1, type: "state", eventId, state, at: new Date().toISOString(), ...(detail ? { detail: detail.slice(0, 2000) } : {}), ...(deliveryId ? { deliveryId } : {}) };
     appendDurable(this.journalPath, record);
     this.latestState.set(eventId, record);

@@ -22,9 +22,9 @@ export interface DeliveryOptions {
   recipientId: string;
   isBusy: () => boolean;
   /** Runs before any attempt is journaled; refusal retains pending events. */
-  preflight?: () => void;
+  preflight?: (automatic: boolean) => void;
   /** Must enqueue a custom message with triggerTurn at a supported safe boundary (steer/continuation), never inject into an in-flight model request. */
-  send: (notice: DeliveryNotice) => void | Promise<void>;
+  send: (notice: DeliveryNotice, automatic: boolean) => void | Promise<void>;
   /** False means passive-only policy: retain pending events for explicit drain/result read. */
   wakeupsEnabled?: boolean;
   coalesceMs?: number;
@@ -86,12 +86,19 @@ export class ParentDelivery {
   onBusy(): void { this.busy = true; this.cancelTimer(); }
 
   hold(reason: string): void { if (!reason.trim()) throw new Error("Hold reason is required"); this.holdReasons.add(reason); this.cancelTimer(); }
-  resume(reason?: string): void {
-    if (reason) this.holdReasons.delete(reason); else this.holdReasons.clear();
+  resume(reason: string): void {
+    if (!reason.trim()) throw new Error("A scoped hold reason is required");
+    if (["interrupted", "waiting-input", "limited", "work-failed", "plan-restricted", "policy-restricted", "wakeup-budget-exhausted"].includes(reason)) throw new Error(`Hold '${reason}' is owned by a state transition and cannot be released generically`);
+    this.holdReasons.delete(reason);
     if (this.holdReasons.size === 0 && this.pending.size && this.options.wakeupsEnabled !== false) {
       if (this.busy) return;
       this.arm();
     }
+  }
+  releaseStateHold(reason: "interrupted" | "waiting-input" | "limited" | "work-failed", transitionSucceeded: boolean): void {
+    if (!transitionSucceeded) throw new Error(`Cannot release '${reason}' hold before its owning transition succeeds`);
+    this.holdReasons.delete(reason);
+    if (this.holdReasons.size === 0 && this.pending.size && this.options.wakeupsEnabled !== false && !this.busy) this.arm();
   }
   holds(): string[] { return [...this.holdReasons]; }
   pendingEvents(): HubEvent[] { return [...this.pending].map(id => this.options.mailbox.get(id)).filter((e): e is HubEvent => !!e); }
@@ -101,7 +108,8 @@ export class ParentDelivery {
   /** Explicit user/model-facing drain. Passive mode still permits deliberate delivery. */
   async drain(): Promise<DeliverySnapshot | undefined> {
     if (this.busy) throw new Error("Cannot dispatch parent notification inside an in-flight turn");
-    if (this.holdReasons.size) throw new Error(`Parent notifications held: ${[...this.holdReasons].join(", ")}`);
+    const blocking = [...this.holdReasons].filter(reason => reason !== "wakeup-budget-exhausted");
+    if (blocking.length) throw new Error(`Parent notifications held: ${blocking.join(", ")}`);
     return this.flush(true);
   }
 
@@ -122,8 +130,9 @@ export class ParentDelivery {
   private async flush(explicit = false, verifiedBoundary = false): Promise<DeliverySnapshot | undefined> {
     this.cancelTimer();
     if (this.inFlight) return this.inFlight;
-    if (this.disposed || (this.busy && !verifiedBoundary) || this.holdReasons.size || (!explicit && this.options.wakeupsEnabled === false)) return;
-    try { this.options.preflight?.(); }
+    const blockingHolds = explicit ? [...this.holdReasons].filter(reason => reason !== "wakeup-budget-exhausted") : [...this.holdReasons];
+    if (this.disposed || (this.busy && !verifiedBoundary) || blockingHolds.length || (!explicit && this.options.wakeupsEnabled === false)) return;
+    try { this.options.preflight?.(!explicit); }
     catch (error) {
       this.hold(error instanceof Error && error.message.includes("budget") ? "wakeup-budget-exhausted" : "policy-restricted");
       return;
@@ -150,7 +159,11 @@ export class ParentDelivery {
       lines.push(e.id);
     }
     if (!lines.length) {
-      for (const e of events) this.options.mailbox.setState(e.id, "pending", `Held: event exceeds ${this.maxChars} character delivery context bound`);
+      for (const e of events) {
+        this.pending.delete(e.id);
+        this.options.mailbox.setState(e.id, "failed", `Held: event exceeds ${this.maxChars} character delivery context bound; inspect the full event artifact`);
+      }
+      this.holdReasons.add("oversized-event");
       return;
     }
     const snapshot: DeliverySnapshot = { version: 1, id, eventIds: lines, recipientId: this.options.recipientId, createdAt: new Date().toISOString(), content, state: "pending" };
@@ -160,9 +173,14 @@ export class ParentDelivery {
     // cannot cause a restore to blindly replay an uncertain batch.
     for (const eventId of lines) { this.pending.delete(eventId); this.options.mailbox.setState(eventId, "unknown", "Dispatch in progress; reconcile before retry", id); }
     try {
-      await this.options.send({ id, eventIds: [...lines], recipientId: snapshot.recipientId, content, events: events.filter(e => lines.includes(e.id)) });
+      await this.options.send({ id, eventIds: [...lines], recipientId: snapshot.recipientId, content, events: events.filter(e => lines.includes(e.id)) }, !_explicit);
+      if (this.disposed) {
+        this.replace(snapshot, "unknown", "Owner disposed during delivery; reconcile before any retry");
+        for (const eventId of lines) if (this.options.mailbox.state(eventId).state !== "consumed") this.options.mailbox.setState(eventId, "unknown", "Owner disposed during delivery", id);
+        return this.deliveries.get(id);
+      }
       this.replace(snapshot, "injected");
-      for (const eventId of lines) this.options.mailbox.setState(eventId, "injected", undefined, id);
+      for (const eventId of lines) if (this.options.mailbox.state(eventId).state !== "consumed") this.options.mailbox.setState(eventId, "injected", undefined, id);
       return this.deliveries.get(id);
     } catch (error) {
       const detail = String(error).slice(0, 2000);
@@ -179,6 +197,7 @@ export class ParentDelivery {
     if (!snapshot) throw new Error(`Unknown delivery snapshot: ${deliveryId}`);
     if (status === "unknown") return;
     if (status === "not_observed") {
+      if (snapshot.eventIds.some(id => this.options.mailbox.state(id).state === "consumed")) throw new Error("Consumed notifications cannot be reconciled back to pending");
       this.replace(snapshot, "pending", "No matching event IDs found; explicit retry required");
       this.holdReasons.delete("delivery-unknown");
       for (const id of snapshot.eventIds) { this.options.mailbox.setState(id, "pending", "Explicitly reconciled absent; deliberate retry required", deliveryId); this.pending.add(id); }
@@ -188,7 +207,7 @@ export class ParentDelivery {
     const matches = snapshot.eventIds.filter(id => observed.has(id));
     if (matches.length !== snapshot.eventIds.length) throw new Error("Cannot mark delivery observed: event ID reconciliation is incomplete");
     this.replace(snapshot, "injected");
-    for (const id of matches) this.options.mailbox.setState(id, "observed", "Matching event ID observed in parent session", deliveryId);
+    for (const id of matches) if (this.options.mailbox.state(id).state !== "consumed") this.options.mailbox.setState(id, "observed", "Matching event ID observed in parent session", deliveryId);
     for (const id of matches) this.pending.delete(id);
   }
 

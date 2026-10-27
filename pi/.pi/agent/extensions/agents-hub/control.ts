@@ -7,7 +7,9 @@ export interface ControlContext { caller: ControlCaller; signal?: AbortSignal }
 export interface ControlDependencies {
   manager: AgentManager;
   launch(input: Launch & { definitionName?: string }, signal?: AbortSignal): Promise<unknown>;
-  result?(id: string, revision?: number, caller?: ControlCaller): unknown | Promise<unknown>;
+  result?(id: string, revision?: number, taskId?: string, resultId?: string, caller?: ControlCaller): unknown | Promise<unknown>;
+  /** Release only recipient holds that a successfully accepted deliberate send supersedes. */
+  afterSend?(id: string, result: unknown): void;
   reply?(id: string, requestId: string, text: string, caller: ControlCaller): unknown | Promise<unknown>;
   resume?(id: string, caller: ControlCaller): unknown | Promise<unknown>;
   report?(id: string, parentId: string | undefined, input: { message: string; kind: string; requestId?: string }, caller: ControlCaller): unknown | Promise<unknown>;
@@ -17,7 +19,7 @@ const VALID_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 const ALLOWED: Record<ControlMethod, string[]> = {
   "agents.launch": ["task", "parentId", "name", "cwd", "provider", "model", "thinking", "tools", "definitionName"],
   "agents.list": [], "agents.read": ["id"], "agents.send": ["id", "message", "delivery", "newTask"],
-  "agents.result": ["id", "revision"], "agents.reply": ["id", "requestId", "message"],
+  "agents.result": ["id", "revision", "taskId", "resultId"], "agents.reply": ["id", "requestId", "message"],
   "agents.interrupt": ["id"], "agents.close": ["id"], "agents.resume": ["id"],
   message_parent: ["message", "kind", "requestId"],
 };
@@ -85,12 +87,15 @@ export class HubControl {
         if (typeof params.message !== "string" || !params.message.trim() || params.message.length > 16_000) throw new Error("Message must be 1..16000 characters");
         if (params.delivery !== undefined && params.delivery !== "steer" && params.delivery !== "followUp") throw new Error("delivery must be steer or followUp");
         if (params.newTask !== undefined && typeof params.newTask !== "boolean") throw new Error("newTask must be boolean");
-        return this.deps.manager.send(id as string, params.message, caller.kind === "root" ? (caller.actor === "ui" ? "user" : "main") : caller.agentId!, params.delivery as "steer" | "followUp" | undefined, params.newTask === true);
+        const sent = await this.deps.manager.send(id as string, params.message, caller.kind === "root" ? (caller.actor === "ui" ? "user" : "main") : caller.agentId!, params.delivery as "steer" | "followUp" | undefined, params.newTask === true);
+        this.deps.afterSend?.(id as string, sent);
+        return sent;
       }
       case "agents.result":
         if (!this.deps.result) throw new Error("Result retrieval is not available yet");
         if (params.revision !== undefined && (!Number.isSafeInteger(params.revision) || (params.revision as number) < 0)) throw new Error("Invalid result revision");
-        return this.deps.result(id as string, params.revision as number | undefined, caller);
+        for (const key of ["taskId", "resultId"] as const) if (params[key] !== undefined && (typeof params[key] !== "string" || !VALID_ID.test(params[key] as string))) throw new Error(`Invalid ${key}`);
+        return this.deps.result(id as string, params.revision as number | undefined, params.taskId as string | undefined, params.resultId as string | undefined, caller);
       case "agents.reply":
         if (!this.deps.reply || typeof params.requestId !== "string" || !VALID_ID.test(params.requestId) || typeof params.message !== "string") throw new Error("A correlated input request reply is required");
         return this.deps.reply(id as string, params.requestId, params.message, caller);

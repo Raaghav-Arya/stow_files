@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, realpathSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { RecordEvent, Transport } from "./rpc.ts";
+import { RpcCommandError, type RecordEvent, type Transport } from "./rpc.ts";
 import { defaultTools, validateTools } from "./tools.ts";
 import { resultPreview, toolPreview, type ActivityEntry } from "./activity.ts";
 import { acquireOwnerLock, RotatingJournal, writeJsonAtomic } from "./storage.ts";
 
-export type AgentState = "starting" | "running" | "idle" | "interrupted" | "waiting-input" | "limited" | "failed" | "stopped";
+export type AgentState = "starting" | "running" | "idle" | "interrupted" | "waiting-input" | "limited" | "work-failed" | "failed" | "stopped";
 export interface Launch {
   task: string;
   parentId?: string;
@@ -26,26 +26,46 @@ export interface Mail {
 }
 export interface AgentRecord extends Launch {
   id: string; state: AgentState; directory: string; workspace: string;
-  rootSessionId?: string; depth?: number; taskId?: string; taskTurns?: number; settled?: boolean; recoverableQueue?: string[];
+  rootSessionId?: string; depth?: number; taskId?: string; taskTurns?: number; settled?: boolean; recoverableQueue?: string[]; recoverableQueueDetails?: Array<{ text: string; delivery: "steer" | "followUp"; mailId?: string }>;
+  /** Provider failure is provisional until Pi reports agent_settled. */
+  pendingWorkError?: string;
   log: string; sessionFile?: string; error?: string;
   output: string; streamedText: string; turns: number; tokens: number; cost: number;
   activity: ActivityEntry[]; assistantActivity?: ActivityEntry; lastAssistant?: string;
   mails: Mail[]; logBytes: number; transport?: Transport;
   serial: Promise<unknown>; timer?: ReturnType<typeof setTimeout>;
   activeMs?: number; activeSince?: number; waitingRequestId?: string;
-  closing?: Promise<void>; transportClosed?: boolean; journal?: RotatingJournal;
+  closing?: Promise<void>; transportClosed?: boolean; journal?: RotatingJournal; interrupting?: boolean;
 }
-export interface HubConfig { maxConcurrent: number; maxAgents: number; maxDepth: number; maxTurns: number; timeoutMinutes: number }
-export const defaults: HubConfig = { maxConcurrent: 16, maxAgents: 128, maxDepth: 3, maxTurns: 1000, timeoutMinutes: 240 };
+export interface NotificationConfig { mode: "passive" | "active"; coalesceMs: number; maxEventsPerDelivery: number; maxContentChars: number; automaticWakeupsPerRecipient: number; automaticWakeupsPerRoot: number }
+export interface HubConfig { maxConcurrent: number; maxAgents: number; maxDepth: number; maxTurns: number; timeoutMinutes: number; notifications: NotificationConfig }
+export const defaults: HubConfig = { maxConcurrent: 16, maxAgents: 128, maxDepth: 3, maxTurns: 1000, timeoutMinutes: 240,
+  notifications: { mode: "passive", coalesceMs: 200, maxEventsPerDelivery: 32, maxContentChars: 16000, automaticWakeupsPerRecipient: 20, automaticWakeupsPerRoot: 100 } };
 export function configFrom(value: unknown): HubConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("agents-hub.json must be an object");
-  const config = { ...defaults };
-  for (const key of Object.keys(value)) {
-    if (!Object.hasOwn(defaults, key)) throw new Error(`Unknown agents-hub setting: ${key}`);
-    const number = (value as Record<string, unknown>)[key];
-    const max = key === "timeoutMinutes" ? 1440 : key === "maxTurns" ? 100_000 : key === "maxConcurrent" ? 64 : key === "maxAgents" ? 4096 : 8;
-    if (!Number.isInteger(number) || (number as number) < 1 || (number as number) > max) throw new Error(`Invalid ${key}: expected integer 1..${max}`);
-    (config as any)[key] = number;
+  const config = { ...defaults, notifications: { ...defaults.notifications } };
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "notifications") {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new Error("notifications must be an object");
+      for (const [name, setting] of Object.entries(entry as Record<string, unknown>)) {
+        if (!Object.hasOwn(defaults.notifications, name)) throw new Error(`Unknown notification setting: ${name}`);
+        if (name === "mode") {
+          if (setting !== "passive" && setting !== "active") throw new Error("notifications.mode must be passive or active");
+          config.notifications.mode = setting;
+        } else {
+          const maximum = name === "coalesceMs" ? 10_000 : name === "maxEventsPerDelivery" ? 256 : name === "maxContentChars" ? 64_000 : 10_000;
+          const minimum = name === "coalesceMs" ? 0 : name === "maxContentChars" ? 256 : 1;
+          if (!Number.isInteger(setting) || (setting as number) < minimum || (setting as number) > maximum) throw new Error(`Invalid notifications.${name}: expected integer ${minimum}..${maximum}`);
+          (config.notifications as any)[name] = setting;
+        }
+      }
+    } else {
+      if (!Object.hasOwn(defaults, key) || key === "notifications") throw new Error(`Unknown agents-hub setting: ${key}`);
+      const number = entry;
+      const max = key === "timeoutMinutes" ? 1440 : key === "maxTurns" ? 100_000 : key === "maxConcurrent" ? 64 : key === "maxAgents" ? 4096 : 8;
+      if (!Number.isInteger(number) || (number as number) < 1 || (number as number) > max) throw new Error(`Invalid ${key}: expected integer 1..${max}`);
+      (config as any)[key] = number;
+    }
   }
   return config;
 }
@@ -55,6 +75,8 @@ export interface Dependencies {
   assertCanWork?: () => void;
   connect: (agent: AgentRecord, event: (event: RecordEvent) => void, exit: (error: Error) => void) => Transport;
   parent: (agent: AgentRecord, text: string, kind: "mail" | "settled" | "error") => void;
+  /** Required durable result persistence at the terminal work boundary. */
+  persistResult?: (agent: AgentRecord, status: "completed" | "failed") => void;
 }
 
 /** Runtime/transport independent registry. No automatic delegation or scheduling. */
@@ -101,7 +123,17 @@ export class AgentManager {
   private changed(agent: AgentRecord) {
     // Metadata is recovery information, never a claim that a child survives reload.
     const { transport, serial, timer, closing, journal, output, streamedText, activity, assistantActivity, lastAssistant, ...metadata } = agent;
-    writeJsonAtomic(join(agent.directory, "agent.json"), { version: 1, ...metadata });
+    try { writeJsonAtomic(join(agent.directory, "agent.json"), { version: 1, ...metadata }); }
+    catch (error) {
+      // Metadata is a mandatory recovery record. Never leave an apparently healthy
+      // live child after the durable state transition failed to persist.
+      agent.state = "failed";
+      agent.error = `Required agent metadata persistence failed: ${String(error)}`;
+      this.pauseTimer(agent);
+      void this.closeDescendants(agent.id);
+      void this.closeAgent(agent).catch(() => {});
+      throw error;
+    }
     this.emit();
   }
   private emit() {
@@ -170,7 +202,7 @@ export class AgentManager {
       provider: agent.provider, model: agent.model, thinking: agent.thinking, workspace: agent.workspace,
       sessionFile: agent.sessionFile, log: agent.log, turns: agent.turns,
       tokens: agent.tokens, estimatedCost: agent.cost, error: agent.error,
-      recoverableQueue: agent.recoverableQueue || [] };
+      recoverableQueue: agent.recoverableQueue || [], recoverableQueueDetails: agent.recoverableQueueDetails || [] };
   }
   async launch(input: Launch, signal?: AbortSignal): Promise<AgentRecord> {
     this.deps.assertCanWork?.();
@@ -231,7 +263,7 @@ export class AgentManager {
       throw error;
     } finally { signal?.removeEventListener("abort", cancel); }
   }
-  private fail(agent: AgentRecord, error: unknown) {
+  fail(agent: AgentRecord, error: unknown) {
     if (!this.live(agent)) return;
     agent.state = "failed";
     agent.error = String(error instanceof Error ? error.message : error);
@@ -253,7 +285,10 @@ export class AgentManager {
     try {
       this.log(agent, event);
       if (event.type === "agent_start") {
-        agent.state = "running"; agent.settled = false; agent.lastAssistant = undefined;
+        // Only a successful assistant response or a deliberate new task clears
+        // a provisional error; agent_start also occurs during retry recovery.
+        if (agent.state !== "limited" && agent.state !== "waiting-input") agent.state = "running";
+        agent.settled = false; agent.lastAssistant = undefined;
         this.resumeTimer(agent);
       }
       if (event.type === "turn_start") {
@@ -326,17 +361,41 @@ export class AgentManager {
           const usage = message.usage;
           agent.tokens += usage?.totalTokens || 0;
           agent.cost += usage?.cost?.total || 0;
-          if (message.stopReason === "error") throw new Error(message.errorMessage || "Agent request failed");
+          if (message.stopReason === "error") {
+            // Pi may retry this assistant response or recover from overflow.
+            // Preserve a provisional error; never tear down a healthy transport
+            // until its session-level agent_settled boundary.
+            agent.pendingWorkError = message.errorMessage || "Agent request failed";
+          } else if (message.stopReason !== "aborted") {
+            agent.pendingWorkError = undefined;
+          }
           if (message.stopReason === "aborted" && agent.state !== "limited") agent.state = "interrupted";
         }
       }
       if (event.type === "agent_settled") {
-        if (agent.state !== "interrupted" && agent.state !== "waiting-input" && agent.state !== "limited") agent.state = "idle";
+        if (event.aborted === true && agent.state !== "limited" && agent.state !== "waiting-input") agent.state = "interrupted";
+        if (agent.state === "interrupted" || agent.state === "waiting-input" || agent.state === "limited") {
+          // Explicit safety gates outrank a provisional provider error. Keep the
+          // diagnostic, but never relabel an interrupted/input-blocked run as an
+          // ordinary recoverable provider failure.
+          if (agent.pendingWorkError) agent.error = agent.pendingWorkError;
+          else agent.error = undefined;
+          agent.pendingWorkError = undefined;
+        } else if (agent.pendingWorkError) {
+          agent.state = "work-failed";
+          agent.error = agent.pendingWorkError;
+          agent.pendingWorkError = undefined;
+          this.activity(agent, { kind: "error", text: agent.error });
+        } else {
+          agent.state = "idle";
+          agent.error = undefined;
+        }
         agent.settled = true;
         this.pauseTimer(agent);
-        this.text(agent, `\n[${agent.state} — ready for another message]\n`);
-        this.activity(agent, { kind: "status", text: "Idle — ready for another message" });
-        this.notify(agent, agent.lastAssistant || "Agent is idle; inspect its activity in Agents Hub.", "settled");
+        if (agent.state === "idle" || agent.state === "work-failed") this.deps.persistResult?.(agent, agent.state === "idle" ? "completed" : "failed");
+        this.text(agent, `\n[${agent.state} — ready for deliberate continuation]\n`);
+        this.activity(agent, { kind: "status", text: agent.state === "work-failed" ? agent.error || "Provider work failed; deliberate continuation required" : `${agent.state} — ready for another message` });
+        this.notify(agent, agent.error || agent.lastAssistant || "Agent is idle; inspect its activity in Agents Hub.", agent.state === "work-failed" ? "error" : "settled");
       }
       // Streaming notifications don't rewrite metadata on every token.
       if (event.type !== "message_update") this.changed(agent);
@@ -347,6 +406,7 @@ export class AgentManager {
   async send(id: string, text: string, from: string = "user", delivery: "steer" | "followUp" = "steer", newTask = false): Promise<Mail> {
     this.deps.assertCanWork?.();
     const agent = this.get(id);
+    if (agent.interrupting) throw new Error("Agent interruption is in progress; message was not submitted");
     if (!text.trim() || text.length > 16_000) throw new Error("Message must be 1..16000 characters");
     const mail: Mail = { id: randomUUID(), from, to: id, text, state: "sending" };
     if (!from || from.length > 128) throw new Error("Invalid sender identity");
@@ -356,16 +416,25 @@ export class AgentManager {
     }
     agent.mails.push(mail);
     let submitted = false;
+    let stateBeforeDispatch: AgentState | undefined;
+    let settledBeforeDispatch: boolean | undefined;
+    let errorBeforeDispatch: string | undefined;
     const operation = agent.serial.then(async () => {
       this.deps.assertCanWork?.();
+      if (agent.interrupting) throw new Error("Agent interruption is in progress; message was not submitted");
       if (!this.live(agent) || !agent.transport || this.closed) throw new Error("Agent is not connected");
-      if (newTask && !(agent.state === "idle" || (agent.state === "limited" && agent.settled))) {
+      if (newTask && !(agent.state === "idle" || (agent.state === "limited" && agent.settled) || (agent.state === "work-failed" && agent.settled))) {
         throw new Error("A new task can start only after the prior task has settled; replies and resumes continue its budget");
       }
       if (agent.state === "limited" && !newTask) throw new Error("Task turn budget exhausted; explicitly start a new task after settlement");
       if (agent.state === "waiting-input" && from !== agent.parentId && from !== "main") throw new Error("Agent is waiting for its parent to answer the input request");
+      // Capture restoration state only after this send reaches its serialized
+      // dispatch slot; concurrent queued sends must not restore stale snapshots.
+      stateBeforeDispatch = agent.state;
+      settledBeforeDispatch = agent.settled;
+      errorBeforeDispatch = agent.error;
       if (newTask) { agent.taskId = randomUUID(); agent.taskTurns = 0; agent.activeMs = 0; agent.error = undefined; await this.configure(agent); }
-      if (agent.state === "interrupted") agent.state = "running";
+      if (agent.state === "interrupted" || agent.state === "work-failed") { agent.state = "running"; agent.error = undefined; }
       agent.settled = false;
       const senderLabel = from === "user" ? "You" : from === "main" ? "Main session" : from;
       this.text(agent, `\n[from ${senderLabel}] ${text}\n`);
@@ -380,6 +449,7 @@ export class AgentManager {
       // A late RPC acknowledgement must not resurrect mail abandoned by stop.
       if (!this.live(agent) || this.closed) {
         if (mail.state !== "delivered") mail.state = "unknown";
+        if (agent.state === "failed") throw new Error(agent.error || "Agent failed during prompt dispatch");
         return mail;
       }
       if (mail.state !== "delivered") mail.state = response.disposition === "handled" ? "failed" : "queued";
@@ -390,11 +460,19 @@ export class AgentManager {
     agent.serial = operation.catch(() => {});
     try { return await operation; }
     catch (error) {
-      if (mail.state !== "delivered") mail.state = submitted ? "unknown" : "failed";
+      const rejected = error instanceof RpcCommandError;
+      if (mail.state !== "delivered") mail.state = submitted && !rejected ? "unknown" : "failed";
       mail.error = String(error);
-      // Admission/policy/state rejection happened before transport submission; it
-      // must not take down a healthy child. Post-submission failures are uncertain.
-      if (submitted) this.fail(agent, error);
+      // Explicit command rejection proves non-acceptance. A lost acknowledgement
+      // is unknown; neither establishes transport failure. Fatal process/protocol
+      // errors arrive through the transport exit callback. Never replay.
+      if (rejected && agent.state === "running" && stateBeforeDispatch !== undefined && stateBeforeDispatch !== "running") {
+        agent.state = stateBeforeDispatch;
+        agent.error = errorBeforeDispatch;
+        agent.settled = settledBeforeDispatch;
+      }
+      try { this.changed(agent); }
+      catch (persistenceError) { this.fail(agent, persistenceError); }
       throw error;
     }
   }
@@ -420,15 +498,33 @@ export class AgentManager {
     this.deps.assertCanWork?.();
     const agent = this.get(id);
     if (!agent.transport || (agent.state !== "running" && agent.state !== "starting")) throw new Error("Agent has no active work to interrupt");
-    // Pi documents that clearing before abort is required to preserve queued prompts.
-    const queued = await agent.transport.request("clear_queue");
-    const steering = Array.isArray(queued?.steering) ? queued.steering : [];
-    const followUp = Array.isArray(queued?.followUp) ? queued.followUp : [];
-    agent.recoverableQueue = [...steering, ...followUp].filter((text): text is string => typeof text === "string");
-    await agent.transport.request("abort");
-    this.pauseTimer(agent);
-    if (this.live(agent)) { agent.state = "interrupted"; this.changed(agent); }
-    return [...agent.recoverableQueue];
+    if (agent.interrupting) throw new Error("Agent interruption is already in progress");
+    // Gate new sends immediately, then serialize queue capture/abort behind any
+    // already-dispatched prompt. Captured messages are retained, never replayed.
+    agent.interrupting = true;
+    const operation = agent.serial.then(async () => {
+      if (!this.live(agent) || !agent.transport) throw new Error("Agent is no longer connected");
+      const queued = await agent.transport.request("clear_queue");
+      if (!this.live(agent) || this.closed) throw new Error("Agent closed during interruption");
+      const steering = Array.isArray(queued?.steering) ? queued.steering : [];
+      const followUp = Array.isArray(queued?.followUp) ? queued.followUp : [];
+      const collect = (items: unknown[], delivery: "steer" | "followUp") => items.filter((text): text is string => typeof text === "string").map(text => ({
+        text, delivery, mailId: text.match(/\[hub-mail:([a-f0-9-]{36})\]/i)?.[1],
+      }));
+      agent.recoverableQueueDetails = [...collect(steering, "steer"), ...collect(followUp, "followUp")];
+      agent.recoverableQueue = agent.recoverableQueueDetails.map(item => item.text);
+      for (const item of agent.recoverableQueueDetails) {
+        const mail = item.mailId ? agent.mails.find(candidate => candidate.id === item.mailId) : undefined;
+        if (mail && mail.state !== "delivered") { mail.state = "unknown"; mail.error = `Cleared during interrupt; retained as ${item.delivery}, never automatically replayed`; }
+      }
+      await agent.transport.request("abort");
+      if (!this.live(agent) || this.closed) return [...agent.recoverableQueue];
+      this.pauseTimer(agent);
+      if (this.live(agent)) { agent.state = "interrupted"; this.changed(agent); }
+      return [...agent.recoverableQueue];
+    });
+    agent.serial = operation.catch(() => {});
+    try { return await operation; } finally { agent.interrupting = false; }
   }
   setWaitingInput(id: string, requestId: string): void {
     const agent = this.get(id);

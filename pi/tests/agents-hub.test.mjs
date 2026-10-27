@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { jiti, root } from "./pi-runtime.mjs";
 const extensionDir = fileURLToPath(new URL("../.pi/agent/extensions/agents-hub/", import.meta.url));
 const { AgentManager, configFrom, defaults } = await jiti.import(join(extensionDir, "manager.ts"));
-const { RpcTransport } = await jiti.import(join(extensionDir, "rpc.ts"));
+const { RpcTransport, RpcCommandError } = await jiti.import(join(extensionDir, "rpc.ts"));
 const { parseDefinition, discoverDefinitions } = await jiti.import(join(extensionDir, "definitions.ts"));
 const { HubView, plain } = await jiti.import(join(extensionDir, "view.ts"));
 const { visibleWidth, matchesKey } = await jiti.import("@earendil-works/pi-tui");
@@ -38,6 +38,10 @@ try {
   assert.throws(() => configFrom({ maxConcurrent: 0 }));
   assert.throws(() => configFrom({ unknown: true }));
   assert.throws(() => configFrom({ toString: 1 }));
+  assert.equal(configFrom({}).notifications.mode, "passive", "automatic notification delivery is opt-in");
+  assert.equal(configFrom({ notifications: { mode: "active", coalesceMs: 0 } }).notifications.mode, "active");
+  assert.throws(() => configFrom({ notifications: { mode: "sometimes" } }), /passive or active/);
+  assert.throws(() => configFrom({ notifications: { maxContentChars: 1 } }), /Invalid notifications/);
 
   const { hub, connections, reports } = fixture({ ...defaults, maxConcurrent: 2 });
   const a = await hub.launch(launch), b = await hub.launch({ ...launch, task: "second" });
@@ -110,6 +114,131 @@ try {
   assert.equal(t.state, "limited");
   assert.match(t.error, /turn limit/);
   assert.equal(turns.connections[0].closed, false, "turn exhaustion preserves the child connection and partial context");
+  // A failed assistant message is provisional: Pi retries/recovery can continue
+  // the same session before agent_settled. It must not close the healthy child.
+  const retry = fixture();
+  const retryAgent = await retry.hub.launch(launch);
+  const retryConnection = retry.connections[0];
+  retryConnection.event({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "transient provider failure", content: [{ type: "text", text: "partial" }] } });
+  retryConnection.event({ type: "agent_end", willRetry: true });
+  retryConnection.event({ type: "auto_retry_start", attempt: 2, maxAttempts: 3, delayMs: 10 });
+  retryConnection.event({ type: "agent_start" });
+  retryConnection.event({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "recovered" }] } });
+  retryConnection.event({ type: "agent_settled", aborted: false });
+  assert.equal(retryAgent.state, "idle");
+  assert.equal(retryConnection.closed, false);
+  assert.equal(retryAgent.taskTurns, 0, "recovery does not reset or consume local task turn accounting");
+  const overflowRetry = fixture();
+  const overflowAgent = await overflowRetry.hub.launch(launch);
+  overflowRetry.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "context overflow" } });
+  overflowRetry.connections[0].event({ type: "compaction_end", willRetry: true });
+  overflowRetry.connections[0].event({ type: "agent_start" });
+  overflowRetry.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "recovered after compaction" }] } });
+  overflowRetry.connections[0].event({ type: "agent_settled", aborted: false });
+  assert.equal(overflowAgent.state, "idle", "overflow error is provisional when compaction recovery succeeds");
+  assert.equal(overflowRetry.connections[0].closed, false);
+  const cancelledRetry = fixture();
+  const cancelledAgent = await cancelledRetry.hub.launch(launch);
+  cancelledRetry.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "last retry failed" } });
+  cancelledRetry.connections[0].event({ type: "auto_retry_start", attempt: 1, maxAttempts: 3, delayMs: 100 });
+  cancelledRetry.connections[0].event({ type: "auto_retry_end", success: false, attempt: 1, finalError: "Retry cancelled" });
+  cancelledRetry.connections[0].event({ type: "agent_settled", aborted: true });
+  assert.equal(cancelledAgent.state, "interrupted", "Pi's aborted settlement outranks the provisional provider error");
+  assert.match(cancelledAgent.error, /last retry failed/, "retry cancellation keeps the diagnostic");
+
+  // A terminal provider failure becomes a distinct work-failed state, retaining
+  // process/session and task budget for deliberate continuation only.
+  const terminalFailure = fixture();
+  const failedWork = await terminalFailure.hub.launch(launch);
+  terminalFailure.connections[0].event({ type: "turn_start" });
+  terminalFailure.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "final provider failure", content: [{ type: "text", text: "partial answer" }] } });
+  terminalFailure.connections[0].event({ type: "agent_end", willRetry: false });
+  terminalFailure.connections[0].event({ type: "agent_settled", aborted: false });
+  assert.equal(failedWork.state, "work-failed");
+  assert.equal(failedWork.taskTurns, 1);
+  assert.equal(failedWork.lastAssistant, "partial answer");
+  assert.equal(terminalFailure.connections[0].closed, false);
+  assert.equal((await terminalFailure.hub.send(failedWork.id, "continue deliberately")).state, "queued");
+  assert.equal(failedWork.taskTurns, 1, "continuation preserves the existing task budget");
+
+  // Explicit RPC command rejection is known pre-acceptance; an acknowledgement
+  // timeout is unknown. Neither alone proves a child transport has failed.
+  const rejected = fixture();
+  const rejectedAgent = await rejected.hub.launch(launch);
+  rejected.connections[0].request = async (type) => {
+    if (type === "prompt") throw new RpcCommandError("command rejected");
+    return {};
+  };
+  await assert.rejects(rejected.hub.send(rejectedAgent.id, "rejected prompt"), /command rejected/);
+  assert.equal(rejectedAgent.mails.at(-1).state, "failed");
+  assert.equal(rejectedAgent.state, "running");
+  assert.equal(rejected.connections[0].closed, false);
+  const lostAck = fixture();
+  const uncertain = await lostAck.hub.launch(launch);
+  lostAck.connections[0].request = async (type) => { if (type === "prompt") throw new Error("RPC prompt timed out; delivery unknown"); return {}; };
+  await assert.rejects(lostAck.hub.send(uncertain.id, "uncertain prompt"), /delivery unknown/);
+  assert.equal(uncertain.mails.at(-1).state, "unknown");
+  assert.equal(uncertain.state, "running");
+  assert.equal(lostAck.connections[0].closed, false);
+  const interruptedFailure = fixture();
+  const interruptedAgent = await interruptedFailure.hub.launch(launch);
+  interruptedFailure.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "provider failed before interrupt" } });
+  interruptedFailure.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "aborted" } });
+  interruptedFailure.connections[0].event({ type: "agent_settled", aborted: true });
+  assert.equal(interruptedAgent.state, "interrupted", "explicit interruption outranks a provisional provider failure");
+  assert.equal(interruptedFailure.connections[0].closed, false);
+  const interruptRace = fixture();
+  const racing = await interruptRace.hub.launch(launch);
+  let finishClear;
+  const racingConnection = interruptRace.connections[0];
+  const request = racingConnection.request.bind(racingConnection);
+  racingConnection.request = async (type, args) => { if (type === "clear_queue") { racingConnection.calls.push({ type, args }); return new Promise(resolve => { finishClear = () => resolve({ steering: ["retained steer"], followUp: ["retained follow-up"] }); }); } return request(type, args); };
+  const interrupting = interruptRace.hub.interrupt(racing.id);
+  for (let i = 0; i < 20 && !finishClear; i++) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(typeof finishClear, "function", "interrupt reaches its serialized clear-queue phase");
+  await assert.rejects(interruptRace.hub.send(racing.id, "must not race interrupt"), /interruption is in progress/);
+  finishClear();
+  assert.deepEqual(await interrupting, ["retained steer", "retained follow-up"]);
+  assert.deepEqual(racingConnection.calls.slice(-2).map(call => call.type), ["clear_queue", "abort"]);
+  await interruptRace.hub.stop(racing.id);
+  await interruptRace.hub.shutdown();
+
+  const closeDuringInterrupt = fixture();
+  const interruptClosingAgent = await closeDuringInterrupt.hub.launch(launch);
+  let releaseQueue;
+  const closeConnection = closeDuringInterrupt.connections[0];
+  const closeRequest = closeConnection.request.bind(closeConnection);
+  closeConnection.request = async (type, args) => { if (type === "clear_queue") { closeConnection.calls.push({ type, args }); return new Promise(resolve => { releaseQueue = () => resolve({ steering: [], followUp: [] }); }); } return closeRequest(type, args); };
+  const pendingInterrupt = closeDuringInterrupt.hub.interrupt(interruptClosingAgent.id);
+  for (let i = 0; i < 20 && !releaseQueue; i++) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(typeof releaseQueue, "function", "interrupt begins queue capture before close");
+  const stopping = closeDuringInterrupt.hub.stop(interruptClosingAgent.id);
+  releaseQueue();
+  await assert.rejects(pendingInterrupt, /closed during interruption/);
+  await stopping;
+  assert.equal(interruptClosingAgent.state, "stopped", "late interrupt cannot resurrect a closed child");
+  assert.equal(closeConnection.calls.some(call => call.type === "abort"), false, "close during clear prevents stale abort RPC");
+  await closeDuringInterrupt.hub.shutdown();
+
+  const resultPersistenceFailure = fixture(defaults, { persistResult: () => { throw new Error("result journal failure"); } });
+  const resultPersistenceAgent = await resultPersistenceFailure.hub.launch(launch);
+  resultPersistenceFailure.connections[0].event({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "result" }] } });
+  resultPersistenceFailure.connections[0].event({ type: "agent_settled", aborted: false });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(resultPersistenceAgent.state, "failed", "required settled-result persistence failure is fatal");
+  assert.equal(resultPersistenceFailure.connections[0].closed, true);
+  await resultPersistenceFailure.hub.shutdown();
+
+  const persistenceFailure = fixture();
+  const persistenceAgent = await persistenceFailure.hub.launch(launch);
+  const originalDirectory = persistenceAgent.directory;
+  persistenceAgent.directory = join("/dev/null", "cannot-create-agent-record");
+  await assert.rejects(persistenceFailure.hub.send(persistenceAgent.id, "mandatory metadata write fails"), /Required agent metadata persistence failed/);
+  persistenceAgent.directory = originalDirectory;
+  assert.equal(persistenceAgent.state, "failed", "required metadata persistence failure is fatal rather than leaving a healthy-looking child");
+  assert.equal(persistenceFailure.connections[0].closed, true);
+  await persistenceFailure.hub.shutdown();
+
   const failure = fixture();
   await assert.rejects(failure.hub.launch({ ...launch, cwd: join(tmp, "missing-directory") }), /ENOENT/);
   await assert.rejects(failure.hub.launch({ ...launch, tools: ["unknown-tool"] }), /tools must/);

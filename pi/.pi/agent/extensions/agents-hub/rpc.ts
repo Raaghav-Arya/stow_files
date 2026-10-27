@@ -4,6 +4,9 @@ import { StringDecoder } from "node:string_decoder";
 import { randomUUID } from "node:crypto";
 import { HUB_PROTOCOL, HUB_PROTOCOL_VERSION, MAX_CONTROL_FRAME_BYTES, MAX_CONTROL_PENDING, parseControlEnvelope, type ChildConfiguration, type ControlEnvelope } from "./protocol.ts";
 
+export class RpcCommandError extends Error {
+  constructor(message: string) { super(message); this.name = "RpcCommandError"; }
+}
 export type RecordEvent = Record<string, any>;
 export interface Transport { request(type: string, fields?: RecordEvent): Promise<any>; close(): Promise<void>; requestBridge?(method: string, params: unknown): Promise<unknown> }
 export interface ControlRequestContext { /** Always supplied from the spawn configuration; never read from child data. */ caller: { agentId: string; parentId?: string; depth: number } }
@@ -70,7 +73,7 @@ export class RpcTransport implements Transport {
             const request = this.pending.get(event.id);
             if (!request) continue;
             clearTimeout(request.timer); this.pending.delete(event.id);
-            event.success ? request.resolve(event.data) : request.reject(new Error(event.error || "RPC request failed"));
+            event.success ? request.resolve(event.data) : request.reject(new RpcCommandError(event.error || "RPC request rejected"));
           } else onEvent(event);
         } catch (error) { fail(error instanceof Error ? error : new Error(String(error))); return; }
       }

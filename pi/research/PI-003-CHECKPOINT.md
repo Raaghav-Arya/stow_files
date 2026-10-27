@@ -51,3 +51,86 @@ The glob includes bridge, chat, control, dispatch, foundation, **index**, mailbo
 9. Physical WezTerm → tmux → Neovim terminal checks, reload acceptance and optional live-provider demonstrations remain unperformed. **Do not treat this commit as approval to reload an accepted/finished PI-003 implementation.**
 
 Unrelated Neovim/OpenCode edits, pre-existing backlog edits (including PI-013/PI-017), and intermediate untracked agent research/progress files are intentionally excluded from the checkpoint commit and remain in the worktree.
+
+## Follow-up implementation: M0 and M1 (2026-10-26)
+
+This implementation pass first expanded `research/PI-003-subagents.md` with
+pinned source review of tintinweb's nested tools/runner/manager/counters/lifecycle/
+inheritance and accessible nicobailon source at `d9c5ca29d881ee173681cafb66af1cc774285276`.
+No reference package was installed or executed. `delivery.ts`'s MIT-attributed
+batch/coalescing adaptation is retained. Exact relevant installed `extensions.md`,
+`sdk.md`, `json.md`, and `rpc.md` contracts were re-read: `message_end` is
+provisional, retries/overflow follow `agent_end`, and `agent_settled` is the final
+automatic-work boundary; command success denotes prompt acceptance, not completion.
+
+M1 delivered in this pass:
+
+- Assistant `stopReason: "error"` records a provisional work error rather than
+  throwing through manager event processing and closing the child. A scheduled
+  retry or recovery start does not clear it; only a successful assistant result
+  clears it, while terminal `agent_settled.aborted` is authoritative for interruption.
+- `work-failed` is separate from transport `failed`: the healthy child, session,
+  descendants, task ID and exact turn count survive. Partial text/error remain
+  visible. No prompt is automatically retried; deliberate continuation is
+  allowed without a task-budget reset, and explicit new task remains a separate
+  operation. Incoming automatic deliveries are held until deliberate continuation.
+- An explicit JSON-RPC command error now uses `RpcCommandError`, distinguishing a
+  known command rejection from an acknowledgement timeout. Send errors after
+  submission become `failed` (known rejected) or `unknown`; neither by itself
+  closes the child. Fatal transport/protocol exit still uses the transport exit
+  callback and performs fatal cleanup.
+- The view labels work-failed-connected separately. Tool/UI continuation clears
+  only the corresponding work-failure delivery hold after a successful queued or
+  observed delivery.
+
+Coverage added to `tests/agents-hub.test.mjs` for retry success, successful
+overflow recovery, terminal provider failure/partial result, unchanged task
+budget through deliberate continuation, explicit command rejection and lost
+acknowledgement. The registered public adapter/IPC tests remain in the full suite.
+
+Final offline checkpoint command from `pi/`:
+
+```sh
+for test in tests/agents-hub*.test.mjs tests/plan-hub-integration.test.mjs \\
+  tests/feature-integration.test.mjs tests/typecheck-agents-hub.mjs \\
+  tests/transcript-navigation.test.mjs; do
+  env PI_AGENTS_HUB_CHILD=0 PI_OFFLINE=1 node "$test" || exit
+done
+```
+
+All 16 entry points passed. The feature integration emitted its existing Ctrl+S
+shortcut conflict warning. The command made no provider-backed prompt requests;
+Pi RPC smoke checks were offline startup only. This does not establish physical
+terminal behavior or live provider retry behavior. At this checkpoint M1 races and
+persistence fault coverage, and M2–M6 requirements remained in progress; see
+`research/PI-003-plan.md` and the later Batch A handoff below. `AGENTS-HUB.md` and
+the PI-003 backlog describe current wakeup defaults and limits accurately.
+
+## Batch A implementation update (offline only)
+
+Added immutable append-only task/revision result snapshots, result lookup by exact
+revision/task or result ID through root and authenticated IPC controls, and exact
+recipient/task/revision completion/failure notification consumption after lookup.
+Result reads no longer fabricate history from the mutable output tail. Mailbox
+consumed state is terminal across later acknowledgements/reconciliation. Explicit
+reports are labeled `reported`; lifecycle settlement records completed/failed.
+
+Notification configuration now validates `notifications.mode` (`passive` default,
+`active` opt-in), coalescing, batch/context bounds and per-recipient/root automatic
+wakeup allowances. Explicit drain bypasses automatic-wakeup allowance accounting;
+unscoped clear-all hold release is disabled. Oversized messages are retained visibly
+as held failures rather than retried in a zero-progress timer loop. Retry cancellation
+preserves provider diagnostics and honors `agent_settled.aborted`. Interrupt is
+serialized behind dispatched sends, gates new sends during its transition, and
+retains queue class plus matching Hub mail IDs where Pi queue text carries them;
+there is no automatic replay.
+
+This is not complete Batch A acceptance: adversarial concurrent interrupt/send/
+settlement/close coverage and mandatory metadata/journal failure integration tests
+remain; full explicit-report/settlement deduplication, comprehensive ownership,
+retention and disposal/reconciliation coverage also remain. Automatic allowance
+counters are in-memory for the extension runtime; persistence across restart and
+full artifact-retention policy remain for follow-up. The exact full checkpoint
+suite, Hub typecheck and `git diff --check` passed after the last changes; the
+feature-integration suite printed the known Ctrl+S shortcut-conflict warning. No
+provider-backed requests, reload, or physical-terminal acceptance were performed.

@@ -10,7 +10,8 @@ const { RotatingJournal, readJournal, writeJsonAtomic } = await jiti.import(join
 const { AgentManager, configFrom, defaults } = await jiti.import(join(dir, "manager.ts"));
 const tmp = mkdtempSync(join(tmpdir(), "pi-hub-foundation-"));
 try {
-  assert.deepEqual(defaults, { maxConcurrent: 16, maxAgents: 128, maxDepth: 3, maxTurns: 1000, timeoutMinutes: 240 });
+  assert.deepEqual(defaults, { maxConcurrent: 16, maxAgents: 128, maxDepth: 3, maxTurns: 1000, timeoutMinutes: 240,
+    notifications: { mode: "passive", coalesceMs: 200, maxEventsPerDelivery: 32, maxContentChars: 16000, automaticWakeupsPerRecipient: 20, automaticWakeupsPerRoot: 100 } });
   assert.equal(configFrom({}).maxConcurrent, 16);
   assert.equal(configFrom({}).maxAgents, 128);
   assert.equal(configFrom({}).maxDepth, 3);

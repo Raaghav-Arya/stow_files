@@ -15,8 +15,14 @@ import { builtinTools } from "./tools.ts";
 import { renderAgentReport } from "./notifications.ts";
 import { DurableMailbox } from "./mailbox.ts";
 import { ParentDelivery } from "./delivery.ts";
+import { ResultStore } from "./results.ts";
 import { installPlanPolicy } from "./plan-policy.ts";
 const localDir = dirname(fileURLToPath(import.meta.url));
+
+/** The roster uses the same validated adapter as model and authenticated IPC sends. */
+export function sendRosterMessage(control: HubControl, id: string, message: string, delivery: "steer" | "followUp", signal?: AbortSignal): Promise<unknown> {
+  return control.handle({ method: "agents.send", params: { id, message, delivery } }, { caller: { kind: "root", actor: "ui" }, signal });
+}
 
 export interface HubIndexSeams {
   connect?: (agent: any, onEvent: (event: any) => void, onExit: (error: Error) => void,
@@ -32,11 +38,11 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
   let generation = 0;
   let control: HubControl | undefined;
   let mailbox: DurableMailbox | undefined;
+  let results: ResultStore | undefined;
   const deliveries = new Map<string, ParentDelivery>();
   let getDeliveryByRecipient: (id: string) => ParentDelivery = id => { const value = deliveries.get(id); if (!value) throw new Error(`Delivery recipient is not initialized: ${id}`); return value; };
   const recipientBusy = new Map<string, boolean>();
   const autoWakeCount = new Map<string, number>();
-  const autoWakeLimit = 20;
   const lifecycleEvents = new Set<string>();
   let rootBusy = false;
   const chatDrafts = new Map<string, { draft: string; history: string[] }>();
@@ -50,6 +56,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
     const root = join(getAgentDir(), "agents-hub", ctx.sessionManager.getSessionId());
     mkdirSync(root, { recursive: true, mode: 0o700 });
     mailbox = new DurableMailbox(join(root, "mailbox.jsonl"));
+    results = new ResultStore(join(root, "results.jsonl"));
     manager = new AgentManager(config, {
       root,
       assertCanWork: () => planPolicy.assertCanWork(),
@@ -73,18 +80,30 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
         try { context?.ui.notify(plain(`${agent.name}: ${kind === "settled" ? "idle — result available in Agents Hub" : text.slice(0, 180)}`), kind === "error" ? "error" : "info"); }
         catch { /* shutdown/replacement may invalidate the old UI */ }
       },
+      persistResult(agent, status) {
+        results!.put({ agentId: agent.id, taskId: agent.taskId || "", revision: agent.taskTurns || 0, status,
+          preview: (agent.lastAssistant || agent.error || "").slice(0, 4000), artifact: agent.output });
+      },
     });
     const getDelivery = (recipientId: string) => {
       let delivery = deliveries.get(recipientId);
       if (delivery) return delivery;
       delivery = new ParentDelivery({ mailbox: mailbox!, journalPath: join(dirname(mailboxPath(ctx)), `delivery-${recipientId}.jsonl`), recipientId,
         isBusy: () => recipientId === "main" ? rootBusy : recipientBusy.get(recipientId) === true,
-        preflight: () => {
+        wakeupsEnabled: config.notifications.mode === "active",
+        coalesceMs: config.notifications.coalesceMs,
+        maxEventsPerDelivery: config.notifications.maxEventsPerDelivery,
+        maxContentChars: config.notifications.maxContentChars,
+        preflight: automatic => {
           planPolicy.assertCanWork();
-          if ((autoWakeCount.get(recipientId) || 0) >= autoWakeLimit) throw new Error(`Automatic wakeup budget exhausted (${autoWakeLimit}); pending events retained`);
+          const settings = config.notifications;
+          if (automatic && ((autoWakeCount.get(recipientId) || 0) >= settings.automaticWakeupsPerRecipient || (autoWakeCount.get("__root__") || 0) >= settings.automaticWakeupsPerRoot)) throw new Error("Automatic wakeup budget exhausted; pending events retained");
         },
-        send: async notice => {
-          autoWakeCount.set(recipientId, (autoWakeCount.get(recipientId) || 0) + 1);
+        send: async (notice, automatic) => {
+          if (automatic) {
+            autoWakeCount.set(recipientId, (autoWakeCount.get(recipientId) || 0) + 1);
+            autoWakeCount.set("__root__", (autoWakeCount.get("__root__") || 0) + 1);
+          }
           if (recipientId === "main") {
             await pi.sendMessage({ customType: "agents-hub-delivery", display: true, content: notice.content, details: { deliveryId: notice.id, eventIds: notice.eventIds } },
               { deliverAs: "steer", triggerTurn: true });
@@ -112,10 +131,18 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
       return manager!.launch({ ...input, task, provider: input.provider || context.model.provider, model: input.model || context.model.id,
         thinking: input.thinking || pi.getThinkingLevel(), cwd: input.cwd || context.cwd }, signal);
     },
+      afterSend: (id, result: any) => {
+        if (result?.state === "queued" || result?.state === "delivered") getDelivery(id).releaseStateHold("work-failed", true);
+      },
       report: async (id, parentId, input, caller) => {
         const child = manager!.get(id);
         const kind = input.kind === "needs_input" ? "needs_input" as const : input.kind === "result" ? "completed" as const : "progress" as const;
         const recipientId = parentId || "main";
+        if (kind === "completed") {
+          const taskId = child.taskId || "", revision = child.taskTurns || 0;
+          try { results!.put({ agentId: id, taskId, revision, status: "reported", preview: input.message.slice(0, 4000), artifact: input.message }); }
+          catch (error) { manager!.fail(child, error); throw new Error(`Required result persistence failed: ${String(error)}`); }
+        }
         const event = mailbox!.create({ rootSessionId: child.rootSessionId || "", rootGeneration: generation,
           recipientId, sourceAgentId: id, ...(parentId ? { parentId } : {}), kind,
           taskId: child.taskId || "", revision: child.taskTurns || 0, text: input.message,
@@ -128,9 +155,22 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
           getDelivery(id).hold("waiting-input");
         }
         getDelivery(recipientId).enqueue(event);
+        if (kind === "completed") lifecycleEvents.add(`${id}:${child.taskId || ""}:${child.taskTurns || 0}:completed`);
         return { accepted: true, eventId: event.id };
       },
-      result: (id) => { const a = manager!.get(id); return { ...manager!.summary(a), output: a.output.slice(-12000), revision: a.taskTurns || 0 }; },
+      result: (id, revision, taskId, resultId, caller) => {
+        const a = manager!.get(id);
+        const matches = results!.list(id);
+        const selected = resultId ? results!.find(id, resultId) : revision !== undefined && taskId ? results!.get(id, taskId, revision) : revision !== undefined ? matches.filter(r => r.revision === revision) : matches.filter(r => r.taskId === a.taskId).sort((x, y) => y.revision - x.revision).slice(0, 1);
+        const result = Array.isArray(selected) ? selected.length === 1 ? selected[0] : undefined : selected;
+        if (!result) throw new Error("Requested immutable result revision was not found; specify taskId/resultId to disambiguate");
+        if (caller?.kind === "agent" || caller?.kind === "root") {
+          const recipientId = caller.kind === "agent" ? caller.agentId : "main";
+          const notice = mailbox!.list({ recipientId }).find(event => event.sourceAgentId === id && event.taskId === result.taskId && event.revision === result.revision && (event.kind === "completed" || event.kind === "failed"));
+          if (notice) getDelivery(recipientId!).consume(notice.id, result.taskId, result.revision, true);
+        }
+        return result;
+      },
       reply: async (id, requestId, text, caller) => {
         const child = manager!.get(id);
         manager!.resolveInput(id, requestId);
@@ -145,7 +185,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
         }
         const sender = caller.kind === "agent" ? caller.agentId! : caller.actor === "ui" ? "user" : "main";
         const result = await manager!.send(id, text, sender, "steer");
-        getDelivery(id).resume("waiting-input");
+        if (result.state === "queued" || result.state === "delivered") getDelivery(id).releaseStateHold("waiting-input", true);
         return result;
       },
       resume: (id) => manager!.resume(id),
@@ -162,7 +202,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
       if (event.type === "agent_settled") {
         recipientBusy.set(agent.id, false);
         const delivery = getDelivery(agent.id);
-        if (agent.state === "interrupted" || agent.state === "waiting-input" || agent.state === "limited") delivery.hold(agent.state);
+        if (agent.state === "interrupted" || agent.state === "waiting-input" || agent.state === "limited" || agent.state === "work-failed" || agent.state === "failed" || agent.state === "stopped") delivery.hold(agent.state);
         else delivery.onIdle();
       }
     });
@@ -170,7 +210,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
       const agents = [...manager!.agents.values()];
       // Persist exactly one lifecycle event per task revision/state; inspection is not consumption.
       for (const agent of agents) {
-        const kind = agent.state === "failed" ? "failed" as const : agent.state === "idle" ? "completed" as const : undefined;
+        const kind = agent.state === "failed" || agent.state === "work-failed" ? "failed" as const : agent.state === "idle" ? "completed" as const : undefined;
         const key = `${agent.id}:${agent.taskId}:${agent.taskTurns || 0}:${kind || ""}`;
         if (kind && (kind === "failed" || agent.settled) && !lifecycleEvents.has(key)) {
           lifecycleEvents.add(key);
@@ -287,7 +327,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
           } else if (action.id && (action.type === "message" || action.type === "follow-up")) {
             const text = await ctx.ui.editor(`Message ${hub.get(action.id).name} (${action.type === "follow-up" ? "after current run" : "steer at next turn boundary"})`);
             if (openedGeneration !== generation) break;
-            if (text?.trim()) await hub.send(action.id, text, "user", action.type === "follow-up" ? "followUp" : "steer");
+            if (text?.trim()) await sendRosterMessage(control!, action.id, text, action.type === "follow-up" ? "followUp" : "steer", ctx.signal);
           } else if (action.id && action.type === "interrupt") {
             const queued = await hub.interrupt(action.id);
             ctx.ui.notify(queued.length ? `Interrupted; ${queued.length} queued message(s) retained for recovery.` : "Interrupted; the connected agent context is preserved.", "info");
@@ -322,10 +362,10 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
       name: Type.Optional(Type.String({ maxLength: 80 })),
       agent: Type.Optional(Type.String({ description: "Name from .pi/agents/ or ~/.pi/agent/agents/. Definition settings override launch options." })),
       tools: Type.Optional(Type.Array(Type.Union(builtinTools.map((v) => Type.Literal(v))), { description: "Built-in tool allowlist independent of cwd. Defaults to read,grep,find,ls. Named definition tool settings take precedence. message_parent is always available." })),
-      message: Type.Optional(Type.String({ maxLength: 16000 })), requestId: Type.Optional(Type.String()), newTask: Type.Optional(Type.Boolean()), revision: Type.Optional(Type.Integer({ minimum: 0 })),
+      message: Type.Optional(Type.String({ maxLength: 16000 })), requestId: Type.Optional(Type.String()), newTask: Type.Optional(Type.Boolean()), revision: Type.Optional(Type.Integer({ minimum: 0 })), taskId: Type.Optional(Type.String()), resultId: Type.Optional(Type.String()),
       delivery: Type.Optional(Type.Union([Type.Literal("steer"), Type.Literal("followUp")])),
       deliveryId: Type.Optional(Type.String()), eventIds: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 256 })),
-      observedStatus: Type.Optional(Type.Union([Type.Literal("observed"), Type.Literal("not_observed"), Type.Literal("unknown")])), 
+      observedStatus: Type.Optional(Type.Union([Type.Literal("observed"), Type.Literal("not_observed"), Type.Literal("unknown")])),
       provider: Type.Optional(Type.String()), model: Type.Optional(Type.String()),
       thinking: Type.Optional(Type.Union(["off", "minimal", "low", "medium", "high", "xhigh", "max"].map((v) => Type.Literal(v)))),
     }, { additionalProperties: false }),
@@ -355,7 +395,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
         }
         case "send": result = await control!.handle({ method: "agents.send", params: { id: params.id || "", message: params.message || "", delivery: params.delivery, newTask: params.newTask } }, { caller: { kind: "root", actor: "model" }, signal }); break;
         case "reply": result = await control!.handle({ method: "agents.reply", params: { id: params.id || "", requestId: params.requestId, message: params.message } }, { caller: { kind: "root", actor: "model" }, signal }); break;
-        case "result": result = await control!.handle({ method: "agents.result", params: { id: params.id || "", revision: params.revision } }, { caller: { kind: "root", actor: "model" }, signal }); break;
+        case "result": result = await control!.handle({ method: "agents.result", params: { id: params.id || "", revision: params.revision, taskId: params.taskId, resultId: params.resultId } }, { caller: { kind: "root", actor: "model" }, signal }); break;
         case "resume": result = await control!.handle({ method: "agents.resume", params: { id: params.id || "" } }, { caller: { kind: "root", actor: "model" }, signal }); break;
         case "notifications": {
           const recipient = params.id || "main";
@@ -365,7 +405,7 @@ export default function (pi: ExtensionAPI, seams: HubIndexSeams = {}) {
             if (!params.deliveryId || !params.observedStatus || !Array.isArray(params.eventIds)) throw new Error("Reconciliation requires deliveryId, eventIds and observedStatus");
             delivery.reconcile(params.deliveryId, params.eventIds, params.observedStatus);
           }
-          if (params.message === "resume") { delivery.resume(); autoWakeCount.set(recipient, 0); }
+          if (params.message === "resume") throw new Error("Unscoped notification resume is disabled; resolve a named hold through its owning state transition");
           if (params.message === "drain") await delivery.drain();
           result = { recipient, holds: delivery.holds(), snapshots: delivery.snapshots(), pending: delivery.pendingEvents().map(e => ({ id: e.id, sourceAgentId: e.sourceAgentId, kind: e.kind, taskId: e.taskId, revision: e.revision })) };
           break;

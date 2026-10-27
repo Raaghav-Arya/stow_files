@@ -8,6 +8,7 @@ import { jiti } from "./pi-runtime.mjs";
 const dir = fileURLToPath(new URL("../.pi/agent/extensions/agents-hub/", import.meta.url));
 const { DurableMailbox } = await jiti.import(join(dir, "mailbox.ts"));
 const { ParentDelivery } = await jiti.import(join(dir, "delivery.ts"));
+const { ResultStore } = await jiti.import(join(dir, "results.ts"));
 const root = mkdtempSync(join(tmpdir(), "pi-hub-mailbox-"));
 const mailboxPath = join(root, "private", "mailbox.jsonl");
 const deliveryPath = join(root, "private", "delivery.jsonl");
@@ -51,7 +52,15 @@ try {
   assert.throws(() => recovered.consume(first.id, first.taskId, first.revision, false), /successful model-facing/);
   recovered.consume(first.id, first.taskId, first.revision, true);
   assert.equal(reopened.state(first.id).state, "consumed");
+  assert.throws(() => reopened.setState(first.id, "pending"), /terminal/);
   recovered.dispose();
+
+  const resultPath = join(root, "results.jsonl");
+  const resultStore = new ResultStore(resultPath);
+  const result = resultStore.put({ agentId: "child", taskId: "task-7", revision: 4, status: "completed", preview: "stable result", artifact: "full immutable result" });
+  assert.equal(resultStore.get("child", "task-7", 4).artifact, "full immutable result");
+  assert.equal(new ResultStore(resultPath).find("child", result.id).preview, "stable result");
+  assert.notEqual(resultStore.put({ agentId: "child", taskId: "task-7", revision: 5, status: "completed", preview: "later", artifact: "later full result" }).id, result.id);
 
   // Idle timer coalesces; explicit holds suppress dispatch and remain inspectable.
   const held = reopened.create(eventInput({ id: "event-held", revision: 5 }));
@@ -64,6 +73,18 @@ try {
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(idleSent.length, 1);
   idle.dispose();
+
+  const passiveEvent = reopened.create(eventInput({ id: "passive-drain", revision: 12 }));
+  let automaticCalls = 0, explicitCalls = 0;
+  const passive = new ParentDelivery({ mailbox: reopened, journalPath: join(root, "passive.jsonl"), recipientId: "parent", isBusy: () => false,
+    wakeupsEnabled: false, preflight: automatic => { if (automatic) automaticCalls++; },
+    send: async (_notice, automatic) => { if (automatic) automaticCalls++; else explicitCalls++; } });
+  passive.hold("wakeup-budget-exhausted"); passive.enqueue(passiveEvent);
+  assert.equal(await passive.drain() instanceof Object, true, "explicit drain may bypass only the automatic-call budget hold");
+  assert.equal(automaticCalls, 0, "explicit drain neither spends nor resets automatic allowance");
+  assert.equal(explicitCalls, 1);
+  assert.ok(passive.holds().includes("wakeup-budget-exhausted"), "manual drain leaves automatic allowance state intact");
+  passive.dispose();
 
   // Failure after snapshot persistence is unknown and retained; restart never blindly retries it.
   const uncertain = reopened.create(eventInput({ id: "event-uncertain", revision: 6 }));
@@ -119,6 +140,13 @@ try {
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(overflowSent.length, 2, "overflow is drained in bounded batches");
   overflow.dispose();
+  const oversizedMailbox = new DurableMailbox(join(root, "oversized-mailbox.jsonl"));
+  const oversized = oversizedMailbox.create(eventInput({ id: "oversized", text: "x".repeat(5000) }));
+  const oversizedDelivery = new ParentDelivery({ mailbox: oversizedMailbox, journalPath: join(root, "oversized.jsonl"), recipientId: "parent", isBusy: () => false, maxContentChars: 256, coalesceMs: 0, send: () => { throw new Error("must not send oversized event"); } });
+  oversizedDelivery.enqueue(oversized); await oversizedDelivery.drain();
+  assert.equal(oversizedMailbox.state(oversized.id).state, "failed", "oversized deliveries are held visibly and do not spin timers");
+  assert.ok(oversizedDelivery.holds().includes("oversized-event"));
+  oversizedDelivery.dispose();
   const timerFailureMailbox = new DurableMailbox(join(root, "timer-failure-mailbox.jsonl"));
   const timerFailureEvent = timerFailureMailbox.create(eventInput({ id: "timer-fail", revision: 11 }));
   const timerFailure = new ParentDelivery({ mailbox: timerFailureMailbox, journalPath: join(root, "timer-failure.jsonl"), recipientId: "parent", isBusy: () => false,

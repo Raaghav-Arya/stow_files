@@ -2,131 +2,49 @@
 
 ## Scope and provenance
 
-Reference: [tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents/tree/ca93a5247e72e7053fcd10bea7125d6c4205f949),
-commit `ca93a5247e72e7053fcd10bea7125d6c4205f949`.
-License inspected: MIT, copyright 2026 tintinweb.
+Two repositories use the `pi-subagents` name and are not interchangeable:
 
-Cloned to `/tmp/pi-reference-review/tintinweb-pi-subagents` for read-only source
-inspection. No dependency installation, downloaded-code execution or source
-copying. No claim of a complete security/dependency audit. The initial review was
-README-only; this follow-up explicitly inspected implementation source.
+1. [tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents/tree/ca93a5247e72e7053fcd10bea7125d6c4205f949), pinned commit `ca93a5247e72e7053fcd10bea7125d6c4205f949`, checked out read-only at `/tmp/pi-reference-review/tintinweb-pi-subagents`. `package.json` says version 0.22.0, MIT, peer Pi >=1.1.0; runtime dependencies `croner` ^10.0.1 and `nanoid` ^5.1.16. Its source tree was not executed or installed.
+2. [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents), shallow source checkout at `/tmp/pi-reference-review/nicobailon-pi-subagents`, pinned current HEAD `d9c5ca29d881ee173681cafb66af1cc774285276`. Its manifest says version 0.83.0, MIT, peer Pi >=1.2.0 (and broad `*` peers), runtime dependencies `@js-temporal/polyfill`, `acorn`, `jiti`, `undici`, and `yaml`. Neither checkout was executed and no dependencies were installed.
 
-The main session inspected the full `completion-outbox.ts`, `cross-extension-rpc.ts`,
-`abortable.ts`, `worktree.ts`, `custom-agents.ts`, `child-context.ts` and
-`ui/viewer-keys.ts`, plus the beginning of `agent-manager.ts`. The UI follow-up
-also inspected full `ui/fleet-list.ts` and the overlay/rendering/Markdown portions
-of `ui/conversation-viewer.ts`. A launched research
-subagent additionally reported full inspection of `agent-manager.ts`,
-`agent-runner.ts`, `custom-agents.ts`, `cross-extension-rpc.ts`,
-`completion-outbox.ts`, `ui/conversation-viewer.ts` and `abortable.ts`, with relevant
-integration ranges of `index.ts`. The source tree was mapped, including workflow,
-scheduling, UI and test modules. **Not every source/test file was exhaustively
-reviewed**; workflow/scheduler internals were not brought into our implementation.
+Maintenance/adoption evidence is limited to observable repository material: tintinweb has a CI workflow, SECURITY.md, CHANGELOG, tests and a commit dated 2026-10-13 addressing resume/nested turn budgets; the other repository has unit/integration/smoke tests, CI/release workflows, changelog and a substantial actively organized source tree at its pinned HEAD. This shows engineering activity, not popularity or trustworthy security. No download, star, user-count or comparative adoption evidence was gathered; no popularity ranking is claimed. Review is not a full security, provenance, dependency or license audit.
 
-Source-research agent ID: `c422450d-ecb5-4f0b-986f-f5ade8202146`.
-Adversarial local-review agent ID: `8b7729d7-af63-46ab-952f-f0a879bf80fa`.
-Their private transcripts/artifacts remain under the parent session's local
-Agents Hub artifact directory, not in this repository.
+## tintinweb actual-source review and concrete reuse decisions
 
-## Lessons from actual source
+In addition to files previously enumerated below, this implementation pass inspected `src/nested-tools.ts` in full; `src/agent-runner.ts` through its tool scope, nested capability, turn observer and runner configuration; `src/agent-manager.ts` through spawn reservation, lifecycle settlement and queue draining; relevant `src/types.ts` definitions; and root `src/index.ts` manager ownership, notification and nested-runtime wiring. `agent-runner.ts`, `agent-manager.ts`, `index.ts`, and `types.ts` exceed the reader output limit and were reviewed in successive available ranges, not claimed as exhaustively read here. The source tree was mapped, not all files/tests read.
 
-1. **Cwd, configuration origin/trust and tools are different inputs.**
-   `AgentManager.startAgent` and `runAgent` distinguish execution `cwd` from
-   `configCwd`. Their runner constructs the session at the execution directory
-   without automatically trusting its executable project resources. Tool scoping
-   is enforced separately. Our smaller RPC implementation keeps target project
-   resources unapproved and selects tools independently from cwd.
+Findings:
 
-2. **Stopping and finishing transport cleanup are different boundaries.**
-   `AgentManager.abort` marks intent/signals execution; settlement releases slots.
-   `shutdownChildSession` handles extension shutdown before session disposal with
-   a bounded wait. We retain a connection slot until process transport close has
-   finished instead of freeing it merely because state says stopped/failed.
-   RPC owns our child runtime shutdown; we do not copy SDK-only disposal calls.
+- Nested delegation is injected only when `allowed_subagents` and a nested runtime are present, the agent is non-isolated, and depth is below the cap. Nested launch checks the strict enabled definition registry and caller allowlist, resolves model and scope, binds the parent's root/config context, verifies record ownership for fetch/steer/resume, and folds descendant usage into visible ancestors. This is a useful capability pattern, but its process-local registry/runtime, spawn semantics and config-loader policies do not map to this Hub's root-owned IPC control plane. Our authenticated IPC plus root revalidation is the deliberate compatible analogue; no nested-tools code is copied.
+- Tool scoping distinguishes built-ins, extension inclusion/exclusion, `ext:` selectors and injected tools; it re-narrows after `turn_end` and checks `beforeToolCall` (including async registration gaps). Its source comments explicitly warn that scopes are not OS sandboxes and that codemode needs an extra gate. This is evidence for retaining our separate cwd/tool envelope and fail-closed capability policy, not a claim that the Hub bridge's tool envelopes enforce filesystem/network security.
+- Counters are split between per-run `turn_end`, per-assistant-message `message_end` usage, lifetime totals and nested ancestor attribution. The manager reserves capacity before async startup, tracks queued start gates, and frees a recorded pool only at settlement. Resume's per-invocation max-turn option is explicitly counted afresh. PI-003 instead requires one task-local counter shared across continuations, preserving budget; importing the reference reset semantics would violate our invariant.
+- `CompletionOutbox` snapshots and coalesces result details at parent-turn boundaries and cancels entries when a result is consumed, but is best-effort: send failures drop the batch. Our `delivery.ts` already adapts its batching/coalescing idea with explicit durable states. Preserve its existing MIT attribution in `THIRD-PARTY-NOTICES.md`; don't replace our persistence/uncertainty handling with the upstream best-effort outbox.
+- Input-needed/status reporting in nested tools is a distinct parent-report path, not a correlated durable input handshake equivalent to Hub `needs_input` request IDs and reply gates. Its manager has completion/result-consumption state, but not the Hub's durable mailbox/reconciliation model. Do not claim equivalence or adopt it.
+- Lifecycle distinguishes abort intent from run settlement and bounded session shutdown/disposal. Its observers, UI, SDK `AgentSession`, process pools and nested records are not our Pi JSONL child transport. Retain transport-close ownership and the installed Pi `agent_settled` boundary; adapt concepts, not lifecycle code.
+- Extension/context inheritance is opt-in through definition fields and is bound to a specific `configCwd`, model registry and parent session context. It highlights that cwd, config trust, extensions and tools are separate capabilities. Our current child bridge deliberately exposes only constrained built-ins/nesting and not arbitrary extension inheritance. Required unsupported policy must fail, not be implied by a config field.
 
-3. **A cancelled wait is not a stop command.**
-   `abortable` rejects a caller's wait, removes its listener and absorbs late
-   settlement without stopping underlying work. Our bounded `wait` preserves
-   that distinction; `stop` is a separate explicit primitive.
+Previously inspected `completion-outbox.ts`, `child-context.ts`, package manifest/license, `cross-extension-rpc.ts`, `abortable.ts`, `custom-agents.ts`, `worktree.ts`, UI viewer/fleet portions and reported runner/manager/index ranges. Existing `delivery.ts` adapts outbox batching/coalescing and carries MIT attribution. No scheduler, workflow, worktree/commit, manager or runner implementation is adopted.
 
-4. **Steering acceptance is not proof of model acknowledgement.**
-   `AgentManager.steer` can buffer before session creation and immediately return
-   success while the eventual session operation can still fail. The inspected
-   path does not supply per-message durable receipts. Our states deliberately
-   distinguish RPC acceptance, observed transcript entry and unknown delivery;
-   none is called proof that the model acted.
+## nicobailon repository inspection and limitations
 
-5. **Completion notifications are policy layered on results.**
-   `CompletionOutbox` snapshots completion data, batches delivery at parent turn
-   boundaries, and cancels pending notifications on result consumption. It is
-   best-effort, not a durable mailbox; a caught send failure drops the batch.
-   We retain passive next-turn reports rather than adopting its idle-parent
-   wakeup policy or result-consumption orchestration. Durable mailbox/result
-   consumption can be designed separately if requested.
+Pinned source was available without running it. This pass inspected its `package.json`, MIT `LICENSE`, source tree and `src/api/delegation.ts`, `src/api/capability-ceiling.ts`, `src/api/agents.ts`, `src/intercom/result-intercom.ts`, `src/intercom/native-supervisor-channel.ts`, `src/runs/shared/child-tool-plan.ts`, `src/runs/shared/child-lifecycle.ts`, `src/runs/background/completion-batcher.ts`. Relevant implementation portions were inspected; the very large repo was not exhaustively reviewed. Its test tree was mapped; tests were not run or relied upon. It provides explicit delegation contracts, capability ceilings, intercom, retained/background run lifecycles, dedupe/batching and many adjacent mechanisms. It also spans external CLIs, persistent supervisors, workflows, schedulers, inspectors, missions, watchdog/policy and process integrations; selecting such a framework wholesale would bring substantial execution surface and dependencies unrelated to this ticket. Its API expects its own authority/extension/intercom ecosystem, not this project's single root-owned Hub registry or our current Pi 1.1 installation. No code adopted from this checkout. No claim of security or broad adoption follows from repository size or the existence of its tests.
 
-6. **A viewer observes/controls an agent; it does not own the agent's lifetime.**
-   `ConversationViewer` subscribes/unsubscribes with its UI lifecycle; close,
-   steering and stop are distinct controls. Our hub closes without killing
-   agents and cleans up subscriptions independently. Local scrolling now freezes
-   a bounded snapshot, rather than pretending a moving tail offset is paused.
+## Existing local design decisions / earlier findings
 
-7. **External integration needs ownership, validation and lifecycle boundaries.**
-   `registerRpcHandlers` uses correlated reply channels and guards stop/steer
-   ownership. The inspected handler casts incoming payloads, so our future
-   control bus should explicitly validate request IDs/options rather than copy
-   it blindly. Child-context guards avoid recursively creating managers.
-   Our RPC children load only the bridge and cannot recursively load the hub.
+1. Cwd, config origin/trust and tools are distinct inputs; target project resources remain unapproved and tools are independently selected.
+2. Transport close and work settlement are distinct; cancellation of a wait does not stop work.
+3. RPC acceptance is not model acknowledgement. Preserve transcript evidence, unknown delivery and no blind replay.
+4. Completion notification is policy layered on result state. Passive mode is supported by the delivery primitive, but current Hub integration enables bounded active wakeups by default; passive-by-default configuration remains unfinished. Snapshots/holds and durable reconciliation are owned here.
+5. The UI observes/controls agent lifetime without owning it. Close, interrupt, resume and viewer disposal remain separate.
+6. External controls must validate correlation, ownership and lifecycle; payload identity is never authority.
+7. Workspace policy is optional: no worktree lifecycle, auto-commit, mandatory scheduling/workflow or shared-checkout serialization is introduced.
 
-8. **Workspace policy is optional even in a much larger implementation.**
-   Its manager accepts cwd independently, with worktree isolation as a separate
-   option. Its `worktree.ts` can stage/commit, create branches and force-remove
-   worktrees on completion. None of that belongs in this user's requested
-   plumbing. Our worktree helper and worktree mode were removed completely;
-   even optional built-in worktree lifecycle is deferred to PI-005/a caller.
+Earlier adversarial findings included removal of mandatory worktrees/tool-to-workspace inference, isolation of observer errors, retained admission accounting, prevention of stale ack revival and prompt queue overtaking, and stable paused-output snapshots. Those claims concern the existing implementation checkpoint and tests, not an exhaustive acceptance proof.
 
-## Adversarial findings acted on
+## M0 implementation gap map (baseline before this pass's M1 edits)
 
-- Removed mandatory worktree creation, tool-to-workspace inference, mode-based
-  prompts, and separate worktree launch UI. Added independent `tools` to launch.
-- Preserved explicit display names when selecting a named role.
-- Isolated external observer failures from agent execution/transport lifetime.
-- Kept starting/running/idle/terminating connections in admission accounting.
-- Prevented late prompt acknowledgements from reviving abandoned mail state,
-  and preserved transcript-proven delivery even if the RPC acknowledgement fails.
-- Reserved the initial task's queue slot behind a startup handshake so concurrent
-  follow-up messages cannot overtake it.
-- Guarded the hub loop against reopening stale UI after session shutdown.
-- Flattened multiline metadata to respect TUI row budgets.
-- Made paused output a stable snapshot and clamped overscrolling.
-
-Regression tests exercise these boundaries without model requests. Model-based
-review is supplementary evidence, not proof of correctness or authorization.
-
-## UI follow-up
-
-The original local screen was too diagnostic/plain. The revised original design
-uses the reference fleet/viewer ideas as presentation inspiration: highlighted
-agent cards, semantic state colors, compact usage, separate roster/activity,
-Markdown, pinned adaptive action bar and a details view. Fullscreen uses the
-terminal area; regular mode uses a centered overlay. Pi's current theme supplies
-all colors; no global theme/keybinding settings are changed.
-
-The manager keeps a bounded typed presentation projection so tool arguments and
-results need not be dumped as JSON in the hub. Tool results are collapsed by
-default; event logs remain authoritative. Completion reports now use the latest
-assistant result, not raw tool-log tails. A compact custom-message renderer
-reduces transcript noise without changing model-facing messages or wakeups.
-
-This work adds no workflow, scheduler, automatic commit or workspace lifecycle.
-Rendering tests use real installed dark/light themes and assert ANSI styling,
-responsive geometry, interaction state and compact-report behavior. Preview via
-`node pi/tests/preview-agents-hub.mjs` without agents/model calls.
+At the start of this pass, local `manager.ts` threw on assistant `message_end` with `stopReason: "error"`, routing through `fail()` and closing the child before Pi's automatic retry/overflow settlement; M1 addresses that path. Prompt-command rejection after submission was marked unknown and also called fatal `fail()`, conflating delivery uncertainty with transport loss; M1 now types explicit RPC command rejection and no longer fails a healthy transport solely on request rejection/timeout. `send()` still mutates state before request acceptance; interrupt races with concurrent dispatch/settlement need explicit tests. For M2, `mailbox.ts`/`delivery.ts` retain events, but results are not immutable task/revision snapshots and successful matching result reads are not comprehensively connected to notification consumption. For M3, manager context is in-memory/root-session scoped but session replacement/branch identity and retained state validation remain incomplete. Existing 16 checkpoint entry points passed before this run per `PI-003-CHECKPOINT.md`; that baseline lacked these failure/race guarantees. See checkpoint and ticket for remaining M4–M6 items.
 
 ## Deliberately not adopted
 
-No scheduler, automatic planner/reviewer pipeline, workflow interpreter,
-automatic worktree creation/integration/cleanup, shared-checkout serialization,
-idle-parent wakeup loop, automatic nested delegation or imported framework.
-Optional orchestration should consume the primitives, not become their core.
-
-Remaining broader PI-003 work is tracked in `pi/BACKLOG.md` and `pi/AGENTS-HUB.md`.
+No third-party runtime dependency, scheduler, automatic planner/reviewer pipeline, workflow interpreter, automatic worktree/commit management, OS sandbox claim, or external supervisor is adopted. Further concrete reuse decisions are above. Remaining PI-003 work is in `BACKLOG.md`, `AGENTS-HUB.md`, `ORCHESTRATION-LIMITATIONS.md`, and the implementation plan.
