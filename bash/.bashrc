@@ -131,3 +131,6 @@ fi
 # Added by Antigravity CLI installer
 export PATH="/home/raaghav/.local/bin:$PATH"
 
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
