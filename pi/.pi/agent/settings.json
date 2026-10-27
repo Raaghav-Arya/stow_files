@@ -11,5 +11,8 @@
   "editorPaddingX": 1,
   "followUpMode": "all",
   "hideThinkingBlock": true,
-  "doubleEscapeAction": "tree"
+  "doubleEscapeAction": "tree",
+  "packages": [
+    "npm:pi-vim-navigation"
+  ]
 }

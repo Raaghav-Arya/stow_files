@@ -24,8 +24,8 @@ const jiti = createJiti(import.meta.url, { alias: {
 const { TuiAltScreen, setKeybindings, visibleWidth } = await jiti.import(tuiEntry);
 const { KeybindingsManager } = await jiti.import(join(root, "dist/core/keybindings.js"));
 const { createInteractiveTuiReference } = await jiti.import(join(root, "dist/modes/interactive/tui-renderer.js"));
-const { TranscriptNavigationEditor, default: extension } = await jiti.import(
-  fileURLToPath(new URL("../.pi/agent/extensions/transcript-navigation.ts", import.meta.url)),
+const { VimNavigationEditor: TranscriptNavigationEditor, default: extension } = await jiti.import(
+  join(process.env.HOME, ".pi/agent/npm/node_modules/pi-vim-navigation/src/index.ts"),
 );
 
 const calls = [];

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { jiti, root, require } from "./pi-runtime.mjs";
 const { default: extension } = await jiti.import(fileURLToPath(new URL("../.pi/agent/extensions/prompt-stash/index.ts", import.meta.url)));
-const { TranscriptNavigationEditor } = await jiti.import(fileURLToPath(new URL("../.pi/agent/extensions/transcript-navigation.ts", import.meta.url)));
+const { VimNavigationEditor: TranscriptNavigationEditor } = await jiti.import(join(process.env.HOME, ".pi/agent/npm/node_modules/pi-vim-navigation/src/index.ts"));
 const { TuiAltScreen, setKeybindings, matchesKey, visibleWidth } = await jiti.import(require.resolve("@earendil-works/pi-tui"));
 const { KeybindingsManager } = await jiti.import(join(root, "dist/core/keybindings.js"));
 const { createInteractiveTuiReference } = await jiti.import(join(root, "dist/modes/interactive/tui-renderer.js"));

@@ -13,7 +13,7 @@ const agentDir = process.env.PI_TEST_LIVE_AGENT_DIR || join(homedir(),'.pi/agent
 const tmp=mkdtempSync(join(tmpdir(),'pi-features-'));
 let rpc;
 try {
-  const loader=new DefaultResourceLoader({cwd:tmp,agentDir,settingsManager:SettingsManager.inMemory(),noSkills:true,noPromptTemplates:true,noThemes:true,noContextFiles:true});
+  const loader=new DefaultResourceLoader({cwd:tmp,agentDir,settingsManager:SettingsManager.inMemory({packages:['npm:pi-vim-navigation']}),noSkills:true,noPromptTemplates:true,noThemes:true,noContextFiles:true});
   await loader.reload();
   const result=loader.getExtensions();
   assert.deepEqual(result.errors,[],'all live extensions must load without errors');
@@ -48,10 +48,11 @@ try {
   assert.deepEqual(errors,[],'combined lifecycle must not emit extension errors');
 
   // Explicit paths are the actual live symlinks, but all mutable CLI storage is isolated.
-  const paths=['agents-hub','ask-user','clear-alias','plan-mode','prompt-stash','transcript-navigation.ts','absolute-context-footer.ts'];
+  const paths=['agents-hub','ask-user','clear-alias','plan-mode','prompt-stash','absolute-context-footer.ts'];
   for(const name of paths) realpathSync(join(agentDir,'extensions',name));
   const args=[join(root,'dist/cli.js'),'--mode','rpc','--offline','--no-session','--no-extensions','--no-mcp','--no-skills','--no-prompt-templates','--no-approve'];
   for(const name of paths) args.push('--extension',join(agentDir,'extensions',name));
+  args.push('--extension',join(agentDir,'npm/node_modules/pi-vim-navigation/src/index.ts'));
   rpc=new RpcTransport(process.execPath,args,tmp,()=>{},()=>{},30_000,{PI_CODING_AGENT_DIR:tmp,PI_AGENTS_HUB_CHILD:'0'});
   const registered=await rpc.request('get_commands');
   for(const name of ['plan','clear','agent','agents']) assert.ok(registered.commands.some(c=>c.name===name));
