@@ -8,7 +8,15 @@ end
 -- Keep default keybindings except Alt+Enter's fullscreen toggle.
 config.keys = {
   { key = "Enter", mods = "ALT", action = wezterm.action.DisableDefaultAssignment },
+  {
+    key = "S",
+    mods = "CTRL|SHIFT",
+    action = wezterm.action.SendKey { key = "S", mods = "CTRL|SHIFT" },
+  },
 }
+
+-- Allow applications such as tmux to request an enhanced keyboard protocol.
+config.enable_kitty_keyboard = true
 
 -- Match Neovim's theme, including any unused space around the terminal grid.
 config.color_scheme = "Catppuccin Mocha"
