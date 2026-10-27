@@ -916,8 +916,20 @@ plugin was installed. Reviewed code reuse is allowed under the shared policy.
   blanket permission for future tool calls; PI-004 and other policies still apply.
 - Keep a lightweight task-progress view optional; no automatic role hierarchy,
   delegation loop or worktree creation. User/orchestrator chooses workspaces.
-- If subagents are used during planning, explicitly propagate compatible planning
-  restrictions or refuse delegation that could bypass them.
+- [ ] **Allow exploration subagents in plan mode (user-requested follow-up).**
+  Replace the blanket delegation-tool block with a verified, narrowly scoped
+  launch path for read-only exploration agents using the installed subagents
+  fork. Permit parent inspection of their findings and safe clarification/steering
+  without enabling implementation agents, arbitrary workflows or mutating tools.
+  Enforce the effective child tool/capability envelope and planning restrictions,
+  including nested delegation; role names or prompts alone do not prove read-only
+  behavior. Reject launches whose restrictions cannot be enforced, with an
+  actionable reason. Preserve explicit model/thinking selection and bounded
+  concurrency/turns; launching an explorer must not approve a plan or switch the
+  parent to execution. Test allowed exploration, denied write/shell/custom/MCP
+  escalation, nested bypasses, result retrieval, cancellation and branch/session
+  transitions through the actual fork adapters. This is proposed work; current
+  plan mode still blocks delegation tools.
 - Handle restart/reload/session replacement and failed/cancelled transitions
   without silently entering an unrestricted execution mode. Define RPC/headless
   behavior without fabricating approval when no user is present.
