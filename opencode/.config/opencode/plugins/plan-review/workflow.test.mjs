@@ -1,25 +1,31 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises"
-import { join } from "node:path"
 import { candidate, createReviewController, READY } from "./workflow.ts"
+import { loadPlan, savePlan } from "./plan.ts"
 
-const plan = "# Goal\nMake the change safely.\n\n## TODOs\n- [ ] Update the implementation.\n- [ ] Add regression tests.\n\n## Verification\nRun the tests and check the acceptance criteria."
-function messages(text = `${plan}\n${READY}`) {
-  return [{ id: "msg_user", type: "user", text: "Make a plan", time: { created: 1 } }, {
-    id: "msg_plan", type: "assistant", agent: "plan", time: { created: 2, completed: 3 },
-    finish: "stop", content: [{ type: "text", text }],
-  }, { id: "msg_idle", type: "idle", outcome: "succeeded", time: { created: 4 } }]
+const plan = "# Goal\nImplement safely.\n\n## TODOs\n- [ ] Make the change.\n- [ ] Add tests.\n\n## Verification\nRun the test suite."
+const receipt = (record) => `Plan saved for review. Revision: ${record.revision}; digest: ${record.digest}\n${READY}`
+
+function messages(record, finalText = receipt(record)) {
+  return [
+    { id: "msg_user", type: "user", text: "Make a plan", time: { created: 1 } },
+    { id: "msg_origin", type: "assistant", agent: "plan", time: { created: 2 }, content: [] },
+    { id: "msg_plan", type: "assistant", agent: "plan", time: { created: 3, completed: 4 },
+      finish: "stop", content: [{ type: "text", text: finalText }] },
+    { id: "msg_idle", type: "idle", outcome: "succeeded", time: { created: 5 } },
+  ]
 }
+
 async function fixture(t) {
   const directory = await mkdtemp("/tmp/opencode/plan-review-test-")
   t.after(() => rm(directory, { recursive: true, force: true }))
+  const record = await savePlan("ses_test", plan, directory, { originMessageID: "msg_origin", userMessageID: "msg_user" })
   const state = { reviews: {} }
-  const session = { id: "ses_test", agent: "plan", outcome: "succeeded", location: { directory: "/repo" }, time: { updated: 4 } }
-  let context = messages()
+  const session = { id: "ses_test", agent: "plan", outcome: "succeeded", location: { directory: "/repo" }, time: { updated: 5 } }
+  let context = messages(record)
   let idle = true
   let inbox = []
-  const forms = new Map()
   const calls = []
   const notices = []
   const models = {
@@ -31,20 +37,6 @@ async function fixture(t) {
       get: async () => structuredClone(session),
       context: async () => structuredClone(context),
       inbox: { list: async () => inbox },
-      form: {
-        get: async ({ formID }) => {
-          if (!forms.has(formID)) throw { _tag: "FormNotFoundError" }
-          return structuredClone(forms.get(formID))
-        },
-        create: async (form) => {
-          if (forms.has(form.id)) throw new Error("Duplicate form")
-          assert.equal(form.fields[0].type, "string")
-          forms.set(form.id, { ...structuredClone(form), state: { status: "pending" } })
-          calls.push(["form", form.id])
-          return form
-        },
-        cancel: async ({ formID }) => { forms.get(formID).state = { status: "cancelled" } },
-      },
       switchAgent: async ({ agent }) => { calls.push(["agent", agent]); session.agent = agent },
       switchModel: async ({ model }) => { calls.push(["model", structuredClone(model)]); session.model = model },
       prompt: async (input) => { calls.push(["prompt", input]); context.push({ id: input.id, type: "user", text: input.text }) },
@@ -57,323 +49,191 @@ async function fixture(t) {
       ...model, enabled: true, variants: [{ id: model.variant }],
     })) }) },
   }
-  const deps = { directory, state, client, update: async (fn) => fn(state), idle: () => idle, notify: (m) => notices.push(m) }
+  const deps = {
+    directory, state, client,
+    update: async (fn) => fn(state),
+    idle: () => idle,
+    notify: (message) => notices.push(message),
+    getPlan: (sessionID, revision, digest) => loadPlan(sessionID, revision, digest, directory),
+  }
   const controller = createReviewController(deps)
   t.after(() => controller.dispose())
-  const answer = (decision = "approve", feedback) => {
-    forms.get(state.reviews.ses_test.formID).state = { status: "answered", answer: { decision, feedback } }
+  return {
+    controller, client, deps, state, session, calls, notices, directory, record,
+    setContext: (value) => { context = value }, setIdle: (value) => { idle = value }, setInbox: (value) => { inbox = value },
   }
-  return { controller, client, deps, state, session, forms, models, calls, notices, directory, answer,
-    setContext: (value) => { context = value }, setIdle: (value) => { idle = value }, setInbox: (value) => { inbox = value } }
 }
 
-test("only explicit, complete successful plans qualify", () => {
-  assert.equal(candidate(messages()).text, plan)
-  for (const text of ["Clarifying question?", plan, `${READY}`, `# Plan\n- [ ] TODO\n${READY}`]) {
-    assert.equal(candidate(messages(text)), undefined)
+test("only a successful Plan turn with a compact revision receipt qualifies", () => {
+  const record = { revision: "a".repeat(32), digest: "b".repeat(64) }
+  assert.equal(candidate(messages(record)).revision, record.revision)
+  for (const text of [plan, "Clarifying question?", `${READY}`, `Plan saved. Revision: forged; digest: ${record.digest}\n${READY}`]) {
+    assert.equal(candidate(messages(record, text)), undefined)
   }
   for (const mutate of [
     (m) => { m.at(-1).outcome = "interrupted" },
-    (m) => { m[1].error = { message: "failure" } },
-    (m) => { m[1].agent = "build" },
-    (m) => { m[1].finish = "length" },
-    (m) => { delete m[1].time.completed },
-    (m) => { m.push({ id: "msg_new", type: "user" }) },
-  ]) { const m = messages(); mutate(m); assert.equal(candidate(m), undefined) }
+    (m) => { m[2].error = { message: "failure" } },
+    (m) => { m[2].agent = "build" },
+    (m) => { m[2].finish = "length" },
+    (m) => { delete m[2].time.completed },
+    (m) => { m.push({ id: "new_user", type: "user" }) },
+  ]) { const m = messages(record); mutate(m); assert.equal(candidate(m), undefined) }
 })
 
-test("saves exact private immutable revision and displays full text in native form", async (t) => {
+test("submission validates, saves privately, and binds the receipt to session and turn", async (t) => {
   const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  const review = f.state.reviews.ses_test
-  assert.equal(await readFile(review.path, "utf8"), `${plan}\n`)
-  const form = f.forms.get(review.formID)
-  assert.ok(form.fields[0].description.includes("Full plan is in the conversation above"))
-  assert.ok(form.fields[0].description.includes(review.path))
-  assert.deepEqual(form.fields[0].options.map(({ label }) => label), ["Approve and build", "Request changes"])
-  assert.ok(form.fields[0].description.length < 140)
-  assert.equal(form.fields[1].when[0].value, "revise")
-  await f.controller.discover("ses_test")
-  assert.equal(f.forms.size, 1)
+  const saved = await loadPlan("ses_test", f.record.revision, f.record.digest, f.directory)
+  assert.equal(saved.text, plan)
+  assert.equal(await readFile(saved.path, "utf8"), `${plan}\n`)
+  assert.equal((await readFile(saved.path)).length < 1000, true)
+  await assert.rejects(loadPlan("another-session", f.record.revision, f.record.digest, f.directory), /does not match/)
+  await assert.rejects(savePlan("ses_test", "No checklist", f.directory), /unchecked/)
 })
 
-test("approval explicitly switches agent then freshly resolved model then submits V2 text", async (t) => {
+test("missing or tampered revision cannot be discovered or approved", async (t) => {
+  const f = await fixture(t)
+  await writeFile(f.record.path, "tampered\n")
+  await f.controller.discover("ses_test")
+  assert.equal(f.state.reviews.ses_test, undefined)
+  assert.match(f.notices[0], /integrity/)
+})
+
+test("malformed saved metadata fails closed", async (t) => {
+  const f = await fixture(t)
+  const metadata = `${f.directory}/${f.record.revision}.json`
+  const original = JSON.parse(await readFile(metadata, "utf8"))
+  await writeFile(metadata, JSON.stringify({ ...original, userMessageID: null }))
+  await assert.rejects(loadPlan("ses_test", f.record.revision, f.record.digest, f.directory), /metadata is incomplete/)
+})
+
+test("forged receipt and wrong originating user turn fail closed", async (t) => {
+  const f = await fixture(t)
+  f.setContext(messages(f.record, `Plan saved for review. Revision: ${f.record.revision}; digest: ${"0".repeat(64)}\n${READY}`))
+  await f.controller.discover("ses_test")
+  assert.equal(f.state.reviews.ses_test, undefined)
+  f.setContext([
+    { id: "other_user", type: "user" }, ...messages(f.record).slice(1),
+  ])
+  await f.controller.discover("ses_test")
+  assert.equal(f.state.reviews.ses_test, undefined)
+})
+
+test("approval explicitly switches agent and configured model, then submits the exact saved revision", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
-  f.models.build = { id: "new-luna", providerID: "custom", variant: "low" }
-  f.answer()
-  await f.controller.reconcile()
-  const actions = f.calls.filter(([name]) => name !== "form")
-  assert.deepEqual(actions.map(([name]) => name), ["agent", "model", "prompt"])
-  assert.deepEqual(actions[1][1], f.models.build)
-  const prompt = actions[2][1]
-  assert.ok(prompt.text.includes(plan))
-  assert.match(prompt.id, /^msg_/)
-  assert.equal(prompt.parts, undefined)
+  assert.equal(f.state.reviews.ses_test.text, plan)
+  await f.controller.decide("ses_test", "approve")
+  assert.deepEqual(f.calls.map(([name]) => name), ["agent", "model", "prompt"])
+  assert.deepEqual(f.calls[1][1], f.models?.build ?? { id: "luna", providerID: "openai", variant: "high" })
+  assert.ok(f.calls[2][1].text.includes(plan))
   assert.equal(f.state.reviews.ses_test.status, "sent")
   await f.controller.reconcile()
   assert.equal(f.calls.filter(([name]) => name === "prompt").length, 1)
 })
 
-test("revision requires feedback and keeps Plan with its configured model", async (t) => {
+test("requesting changes requires feedback and leaves implementation unstarted", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
-  f.answer("revise", "Add rollback details")
-  await f.controller.reconcile()
-  assert.deepEqual(f.calls.find(([name]) => name === "agent"), ["agent", "plan"])
-  assert.ok(f.calls.find(([name]) => name === "prompt")[1].text.includes("Add rollback details"))
+  await assert.rejects(f.controller.decide("ses_test", "revise", "  "), /nonempty feedback/)
+  assert.equal(f.calls.length, 0)
+  await f.controller.decide("ses_test", "revise", "Add rollback details")
+  assert.deepEqual(f.calls.map(([name]) => name), ["agent", "model", "prompt"])
+  assert.equal(f.calls[0][1], "plan")
+  assert.ok(f.calls[2][1].text.includes("Add rollback details"))
 })
 
-test("blank revision feedback fails closed and can be reopened", async (t) => {
+test("cancel and reopen do not approve", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
-  f.answer("revise", "  ")
-  await f.controller.reconcile()
+  await f.controller.cancel("ses_test")
   assert.equal(f.state.reviews.ses_test.status, "cancelled")
-  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 0)
-  await f.controller.reopen("ses_test")
-  assert.equal(f.forms.size, 2)
-})
-
-test("cancelled native form never implements and can be reopened without a new Plan turn", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.forms.get(f.state.reviews.ses_test.formID).state = { status: "cancelled" }
-  await f.controller.reconcile()
-  assert.equal(f.state.reviews.ses_test.status, "cancelled")
+  assert.equal(f.calls.length, 0)
   await f.controller.reopen("ses_test")
   assert.equal(f.state.reviews.ses_test.status, "pending")
-  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 0)
+  assert.equal(f.calls.length, 0)
 })
 
-test("new user input invalidates answered plan instead of launching stale work", async (t) => {
+test("a handed-off revision cannot be reopened", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
-  f.answer()
-  f.setContext([...messages(), { id: "msg_changed", type: "user", text: "Stop" }])
-  await f.controller.reconcile()
-  assert.equal(f.state.reviews.ses_test.status, "stale")
-  assert.equal(f.calls.filter(([name]) => name === "agent").length, 0)
-})
-
-test("queued prompts invalidate review", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.answer()
-  f.setInbox([{ id: "queued" }])
-  await f.controller.reconcile()
-  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 0)
-})
-
-test("modified saved plan blocks approval", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  await writeFile(f.state.reviews.ses_test.path, "unapproved content")
-  f.answer()
-  await f.controller.reconcile()
-  assert.equal(f.state.reviews.ses_test.status, "cancelled")
-  assert.equal(f.calls.filter(([name]) => name === "agent").length, 0)
-})
-
-test("unavailable model fails before switching agents", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.client.model.list = async () => ({ data: [] })
-  f.answer()
-  await f.controller.reconcile()
-  assert.equal(f.calls.filter(([name]) => name === "agent").length, 0)
-  assert.match(f.notices[0], /unavailable/)
-})
-
-test("reload resumes answered form once; two controllers cannot duplicate handoff", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.answer()
-  const other = createReviewController(f.deps)
-  t.after(() => other.dispose())
-  await Promise.all([other.reconcile(), f.controller.reconcile()])
+  await f.controller.decide("ses_test", "revise", "Add rollback details")
+  assert.equal(f.state.reviews.ses_test.status, "sent")
+  await assert.rejects(f.controller.reopen("ses_test"), /no longer reopenable/)
+  assert.equal(f.state.reviews.ses_test.status, "sent")
   assert.equal(f.calls.filter(([name]) => name === "prompt").length, 1)
 })
 
-test("transport failure at handoff is uncertain and never automatically replayed", async (t) => {
+test("reopen fails with a clear message when no saved plan exists", async (t) => {
+  const f = await fixture(t)
+  f.setContext(messages(f.record, "No plan was produced"))
+  await assert.rejects(f.controller.reopen("ses_test"), /There is no plan to display/)
+  assert.equal(f.state.reviews.ses_test, undefined)
+})
+
+test("new input and queued prompts invalidate a pending approval", async (t) => {
+  const f = await fixture(t)
+  await f.controller.discover("ses_test")
+  f.setContext([...messages(f.record), { id: "msg_new", type: "user" }])
+  await f.controller.decide("ses_test", "approve")
+  assert.equal(f.state.reviews.ses_test.status, "stale")
+  assert.equal(f.calls.length, 0)
+
+  const g = await fixture(t)
+  await g.controller.discover("ses_test")
+  g.setInbox([{ id: "queued" }])
+  await g.controller.decide("ses_test", "approve")
+  assert.equal(g.calls.length, 0)
+})
+
+test("unavailable Build model blocks switching agents", async (t) => {
+  const f = await fixture(t)
+  await f.controller.discover("ses_test")
+  f.client.model.list = async () => ({ data: [] })
+  await assert.rejects(f.controller.decide("ses_test", "approve"), /unavailable/)
+  assert.equal(f.calls.length, 0)
+})
+
+test("handoff transport failure is uncertain and is never replayed", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
   f.client.session.prompt = async () => { throw new Error("Connection lost after admission") }
-  f.answer()
-  await f.controller.reconcile()
+  await assert.rejects(f.controller.decide("ses_test", "approve"))
   assert.equal(f.state.reviews.ses_test.status, "uncertain")
   await f.controller.reconcile()
   await assert.rejects(f.controller.reopen("ses_test"), /uncertain/)
 })
 
-test("write failures remain retryable instead of marking plan discovered", async (t) => {
-  const f = await fixture(t)
-  const blocked = join(f.directory, "not-a-directory")
-  await writeFile(blocked, "blocked")
-  const controller = createReviewController({ ...f.deps, directory: blocked })
-  t.after(() => controller.dispose())
-  await controller.discover("ses_test")
-  assert.equal(f.state.reviews.ses_test, undefined)
-  assert.equal(controller.needsDiscovery(f.session), true)
-})
-
-test("new revisions preserve old files and cancel old pending forms", async (t) => {
+test("duplicate controller handoffs are guarded by an exclusive claim", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
-  const old = { ...f.state.reviews.ses_test }
-  const updated = messages(`${plan}\nExtra detail\n${READY}`)
-  updated[1].id = "msg_revision"
-  f.setContext(updated)
-  await f.controller.discover("ses_test")
-  assert.notEqual(f.state.reviews.ses_test.path, old.path)
-  assert.equal(await readFile(old.path, "utf8"), `${plan}\n`)
-  assert.equal(f.forms.get(old.formID).state.status, "cancelled")
+  const second = createReviewController(f.deps)
+  t.after(() => second.dispose())
+  await Promise.all([
+    f.controller.decide("ses_test", "approve").catch(() => {}),
+    second.decide("ses_test", "approve").catch(() => {}),
+  ])
+  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 1)
 })
 
-test("disposal suppresses further work and notifications", async (t) => {
-  const f = await fixture(t)
-  f.controller.dispose()
-  await f.controller.discover("ses_test")
-  f.controller.report(new Error("after disposal"))
-  assert.equal(f.calls.length, 0)
-  assert.equal(f.notices.length, 0)
-})
-
-test("obsolete reconciliation cannot replace a newer saved revision", async (t) => {
+test("duplicate decisions in one controller are rejected while validation is pending", async (t) => {
   const f = await fixture(t)
   await f.controller.discover("ses_test")
   let release
-  let entered
-  const paused = new Promise((r) => { entered = r })
-  const original = f.client.session.context
-  let first = true
-  f.client.session.context = async (...args) => {
-    if (first) {
-      first = false
-      entered()
-      await new Promise((r) => { release = r })
-    }
-    return original(...args)
-  }
-  const oldRun = f.controller.reconcile()
-  await paused
-  const newMessages = messages(`${plan}\nNew revision details\n${READY}`)
-  newMessages[1].id = "msg_new_revision"
-  f.setContext(newMessages)
-  const other = createReviewController(f.deps)
-  t.after(() => other.dispose())
-  await other.discover("ses_test")
+  const gate = new Promise((resolve) => { release = resolve })
+  const originalGet = f.client.session.get
+  f.client.session.get = async (...args) => { await gate; return originalGet(...args) }
+  const first = f.controller.decide("ses_test", "approve")
+  await assert.rejects(f.controller.decide("ses_test", "revise", "Change it"), /already in progress/)
   release()
-  await oldRun
-  assert.equal(f.state.reviews.ses_test.messageID, "msg_new_revision")
-  assert.equal(f.state.reviews.ses_test.status, "pending")
+  await first
+  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 1)
 })
 
-test("unloading during agent switch blocks subsequent model switch and admission", async (t) => {
+test("saved revisions remain immutable and long plans are returned in full for panel rendering", async (t) => {
   const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.answer()
-  const original = f.client.session.switchAgent
-  f.client.session.switchAgent = async (input) => {
-    await original(input)
-    f.controller.dispose()
-  }
-  await f.controller.reconcile()
-  assert.deepEqual(f.calls.filter(([name]) => name !== "form").map(([name]) => name), ["agent"])
-  assert.equal(f.state.reviews.ses_test.status, "uncertain")
-})
-
-test("unloading during model switch blocks admission", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.answer()
-  const original = f.client.session.switchModel
-  f.client.session.switchModel = async (input) => {
-    await original(input)
-    f.controller.dispose()
-  }
-  await f.controller.reconcile()
-  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 0)
-  assert.equal(f.state.reviews.ses_test.status, "uncertain")
-})
-
-test("unloading after prompt admission still records sent without replay", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  f.answer()
-  const original = f.client.session.prompt
-  f.client.session.prompt = async (input) => {
-    await original(input)
-    f.controller.dispose()
-  }
-  await f.controller.reconcile()
-  assert.equal(f.state.reviews.ses_test.status, "sent")
-})
-
-test("reopening pending review reuses its native form", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  const formID = f.state.reviews.ses_test.formID
-  await f.controller.reopen("ses_test")
-  await f.controller.reopen("ses_test")
-  assert.equal(f.state.reviews.ses_test.formID, formID)
-  assert.equal(f.forms.size, 1)
-})
-
-test("existing claim surfaces uncertain state instead of silently wedging review", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  await writeFile(`${f.state.reviews.ses_test.path}.claim`, "old claim")
-  f.answer()
-  await f.controller.reconcile()
-  assert.equal(f.state.reviews.ses_test.status, "uncertain")
-  assert.match(f.notices[0], /existing handoff claim/)
-  assert.equal(f.calls.filter(([name]) => name === "prompt").length, 0)
-})
-
-test("concurrent native form creation conflict reuses valid winning form", async (t) => {
-  const f = await fixture(t)
-  const original = f.client.session.form.create
-  f.client.session.form.create = async (input) => {
-    await original(input)
-    throw { _tag: "ConflictError" }
-  }
-  await f.controller.discover("ses_test")
-  await f.controller.reconcile()
-  assert.equal(f.state.reviews.ses_test.status, "pending")
-  assert.equal(f.notices.length, 0)
-  assert.equal(f.forms.size, 1)
-})
-
-test("obsolete discovery cannot cancel a newer committed form", async (t) => {
-  const f = await fixture(t)
-  await f.controller.discover("ses_test")
-  let entered
-  let release
-  const paused = new Promise((r) => { entered = r })
-  const original = f.client.session.context
-  let first = true
-  f.client.session.context = async (...args) => {
-    if (first) {
-      first = false
-      const oldSnapshot = await original(...args)
-      entered()
-      await new Promise((r) => { release = r })
-      return oldSnapshot
-    }
-    return original(...args)
-  }
-  const delayed = f.controller.discover("ses_test")
-  await paused
-  const updated = messages(`${plan}\nNew candidate\n${READY}`)
-  updated[1].id = "msg_new_discovery"
-  f.setContext(updated)
-  const other = createReviewController(f.deps)
-  t.after(() => other.dispose())
-  await other.discover("ses_test")
-  release()
-  await delayed
-  assert.equal(f.state.reviews.ses_test.messageID, "msg_new_discovery")
-  assert.equal(f.state.reviews.ses_test.status, "pending")
-  assert.equal(f.forms.get(f.state.reviews.ses_test.formID).state.status, "pending")
+  const longPlan = `${plan}\n\n${"A detailed plan paragraph.\n".repeat(400).trimEnd()}`
+  const record = await savePlan("ses_test", longPlan, f.directory, { originMessageID: "msg_origin", userMessageID: "msg_user" })
+  const loaded = await loadPlan("ses_test", record.revision, record.digest, f.directory)
+  assert.equal(loaded.text, longPlan)
+  assert.ok(loaded.text.length > 10_000)
 })

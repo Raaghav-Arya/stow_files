@@ -1,18 +1,19 @@
 import type { OpenCodeClient, SessionInfo, SessionMessageInfo, ModelRef } from "@opencode/client"
 import { createHash } from "node:crypto"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { loadPlan, type PlanRecord } from "./plan.ts"
 
 export const READY = "<!-- opencode-plan-ready -->"
 type Review = {
   sessionID: string
   messageID: string
+  revision: string
   boundary: string
   path: string
   text: string
   hash: string
-  formID: string
   status: "pending" | "cancelled" | "stale" | "applying" | "sent" | "uncertain"
 }
 export type ReviewState = { reviews: Record<string, Review> }
@@ -22,12 +23,18 @@ type Dependencies = {
   update: (mutation: (state: ReviewState) => void) => Promise<void>
   idle: (sessionID: string) => boolean
   notify: (message: string) => void
+  getPlan?: (sessionID: string, revision: string, digest: string) => Promise<Pick<PlanRecord, "text" | "path" | "originMessageID" | "userMessageID">>
   directory?: string
 }
 const hash = (text: string) => createHash("sha256").update(text).digest("hex")
 const actionable = (messages: readonly SessionMessageInfo[]) => messages.filter((m) =>
   ["user", "assistant", "synthetic", "shell", "location-switched", "compaction"].includes(m.type))
 const boundary = (messages: readonly SessionMessageInfo[]) => actionable(messages).at(-1)?.id ?? ""
+const userBefore = (messages: readonly SessionMessageInfo[], messageID: string) => {
+  const end = messages.findIndex((message) => message.id === messageID)
+  if (end < 0) return undefined
+  return [...messages.slice(0, end + 1)].reverse().find((message) => message.type === "user")?.id
+}
 
 export function candidate(messages: readonly SessionMessageInfo[]) {
   const last = messages.at(-1)
@@ -37,15 +44,16 @@ export function candidate(messages: readonly SessionMessageInfo[]) {
     || !message.time.completed || message.finish !== "stop") return
   const raw = message.content.filter((p) => p.type === "text").map((p) => p.text).join("\n\n").trim()
   if (!raw.endsWith(READY)) return
-  const text = raw.slice(0, -READY.length).trim()
-  if (!/^\s*- \[ \] \S/m.test(text) || !/^#{1,3} .*\b(test|verif|validation|acceptance)/im.test(text)) return
-  return { messageID: message.id, boundary: boundary(messages), text }
+  const receipt = raw.slice(0, -READY.length).trim().match(/Revision: ([a-f0-9]{32}); digest: ([a-f0-9]{64})$/)
+  if (!receipt) return
+  return { messageID: message.id, boundary: boundary(messages), revision: receipt[1], digest: receipt[2] }
 }
 
 export function createReviewController(deps: Dependencies) {
   const { client, state } = deps
   const directory = deps.directory ?? join(homedir(), ".opencode", "plan", "review")
   const seen = new Map<string, number>()
+  const inFlight = new Set<string>()
   let stopped = false
   let lastError = ""
   const report = (error: unknown) => {
@@ -54,7 +62,7 @@ export function createReviewController(deps: Dependencies) {
     lastError = message
   }
   const same = (a: Review | undefined, b: Review | undefined) =>
-    a?.messageID === b?.messageID && a?.formID === b?.formID && a?.status === b?.status
+    a?.messageID === b?.messageID && a?.revision === b?.revision && a?.status === b?.status
   const current = (review: Review) => same(state.reviews[review.sessionID], review)
   const save = async (review: Review, expected: Review | undefined, terminal = false) => {
     if (stopped && !terminal) return false
@@ -67,6 +75,7 @@ export function createReviewController(deps: Dependencies) {
     return changed
   }
   const active = () => { if (stopped) throw new Error("Plugin unloaded during handoff; no further actions will be started") }
+  const getPlan = deps.getPlan ?? ((sessionID, revision, digest) => loadPlan(sessionID, revision, digest, directory))
   const fresh = async (review: Review) => {
     if (stopped || !deps.idle(review.sessionID)) return false
     const session = await client.session.get({ sessionID: review.sessionID })
@@ -74,54 +83,12 @@ export function createReviewController(deps: Dependencies) {
     const pending = await client.session.inbox.list({ sessionID: review.sessionID })
     if (pending.length) return false
     const messages = await client.session.context({ sessionID: review.sessionID })
-    return boundary(messages) === review.boundary && candidate(messages)?.text === review.text
+    const proposed = candidate(messages)
+    if (boundary(messages) !== review.boundary || proposed?.revision !== review.revision || proposed.digest !== review.hash) return false
+    const saved = await getPlan(review.sessionID, review.revision, review.hash)
+    return saved.text === review.text && saved.path === review.path
   }
-  const createForm = async (review: Review) => {
-    if (stopped) return
-    // A deterministic ID deduplicates creation across clients and reloads.
-    try {
-      await client.session.form.get({ sessionID: review.sessionID, formID: review.formID })
-      return
-    } catch (error) {
-      if (!error || typeof error !== "object" || !("_tag" in error) || error._tag !== "FormNotFoundError") throw error
-    }
-    const payload = {
-      sessionID: review.sessionID,
-      id: review.formID,
-      title: "Review saved implementation plan",
-      metadata: { plugin: "raaghav.plan-review", path: review.path, revision: review.messageID, hash: review.hash },
-      fields: [{
-        key: "decision", type: "string", required: true, custom: false,
-        title: "Approve this plan or request changes?",
-        description: `Saved: ${review.path}\nFull plan is in the conversation above; choose below.`,
-        options: [
-          { value: "approve", label: "Approve and build", description: "Switch to Build and its configured model; implement this revision" },
-          { value: "revise", label: "Request changes", description: "Stay in Plan and send feedback" },
-        ],
-      }, {
-        key: "feedback", type: "string", required: true, minLength: 1,
-        title: "What should change?", when: [{ key: "decision", op: "eq", value: "revise" }],
-      }],
-    } as const
-    try {
-      if (stopped || !current(review)) return
-      await client.session.form.create(payload)
-    } catch (error) {
-      if (!error || typeof error !== "object" || !("_tag" in error) || error._tag !== "ConflictError") throw error
-      const existing = await client.session.form.get({ sessionID: review.sessionID, formID: review.formID })
-      if (existing.metadata?.plugin !== "raaghav.plan-review" || existing.metadata.hash !== review.hash
-        || existing.metadata.revision !== review.messageID) throw new Error("Conflicting native form does not match this plan revision")
-    }
-  }
-  const invalidate = async (review: Review) => {
-    try {
-      const form = await client.session.form.get({ sessionID: review.sessionID, formID: review.formID })
-      if (form.state.status === "pending") await client.session.form.cancel({ sessionID: review.sessionID, formID: review.formID })
-    } catch (error) {
-      if (!error || typeof error !== "object" || !("_tag" in error) || error._tag !== "FormNotFoundError") throw error
-    }
-    await save({ ...review, status: "stale" }, review)
-  }
+  const invalidate = async (review: Review) => save({ ...review, status: "stale" }, review)
   const discover = async (sessionID: string) => {
     if (stopped || !deps.idle(sessionID)) return
     try {
@@ -129,36 +96,33 @@ export function createReviewController(deps: Dependencies) {
       if (session.parentID || session.agent !== "plan" || session.outcome !== "succeeded") return
       const stored = state.reviews[sessionID]
       const previous = stored ? { ...stored } : undefined
-      const plan = candidate(await client.session.context({ sessionID }))
-      if (!plan) { seen.set(sessionID, session.time.updated); return }
-      if (previous?.messageID === plan.messageID) { seen.set(sessionID, session.time.updated); return }
-      await mkdir(directory, { recursive: true, mode: 0o700 })
-      const digest = hash(plan.text)
-      const revision = hash(`${sessionID}:${plan.messageID}`).slice(0, 32)
-      const path = join(directory, `${revision}.md`)
-      try {
-        await writeFile(path, `${plan.text}\n`, { flag: "wx", mode: 0o600 })
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
-        if (await readFile(path, "utf8") !== `${plan.text}\n`) throw new Error("Saved plan revision was modified; refusing to overwrite it")
+      const proposal = candidate(await client.session.context({ sessionID }))
+      if (!proposal) { seen.set(sessionID, session.time.updated); return }
+      if (previous?.revision === proposal.revision) { seen.set(sessionID, session.time.updated); return }
+      const messages = await client.session.context({ sessionID })
+      const saved = await getPlan(sessionID, proposal.revision, proposal.digest)
+      const originIndex = messages.findIndex((message) => message.id === saved.originMessageID)
+      const finalIndex = messages.findIndex((message) => message.id === proposal.messageID)
+      const origin = messages[originIndex]
+      if (originIndex < 0 || finalIndex < originIndex || origin?.type !== "assistant" || origin.agent !== "plan"
+        || userBefore(messages, saved.originMessageID) !== saved.userMessageID) {
+        throw new Error("Plan receipt is not bound to this Plan turn and user request")
       }
-      const review: Review = { ...plan, sessionID, path, hash: digest, formID: `frm_plan_${revision}`, status: "pending" }
+      const plan = { ...proposal, text: saved.text, path: saved.path }
+      const review: Review = { ...plan, sessionID, revision: proposal.revision, hash: proposal.digest, status: "pending" }
       if (!await fresh(review)) return
       if (!await save(review, previous)) return
-      // Only retire the old form after the fresh candidate has committed successfully.
+      // Retire an older pending revision only after the new one is committed.
       // invalidate's conditional state write cannot replace the newly committed revision.
       if (previous?.status === "pending") await invalidate(previous)
-      await createForm(review)
       seen.set(sessionID, session.time.updated)
     } catch (error) { report(error) }
   }
-  const apply = async (review: Review, answer: Record<string, unknown>) => {
+  const apply = async (review: Review, decision: "approve" | "revise", feedback = "") => {
     if (!current(review)) return
     if (!await fresh(review)) { await invalidate(review); return }
-    const decision = answer.decision
-    const feedback = typeof answer.feedback === "string" ? answer.feedback.trim() : ""
-    if (decision !== "approve" && decision !== "revise") throw new Error("Invalid plan review decision")
-    if (decision === "revise" && !feedback) throw new Error("Please provide nonempty feedback; reopen plan review")
+    feedback = feedback.trim()
+    if (decision === "revise" && !feedback) throw new Error("Please provide nonempty feedback")
     if (await readFile(review.path, "utf8") !== `${review.text}\n`) throw new Error("Saved plan differs from the reviewed revision; approval blocked")
     const agentID = decision === "approve" ? "build" : "plan"
     const session = await client.session.get({ sessionID: review.sessionID })
@@ -217,10 +181,6 @@ export function createReviewController(deps: Dependencies) {
       try {
         if (!deps.idle(review.sessionID)) continue
         if (!await fresh(review)) { await invalidate(review); continue }
-        await createForm(review)
-        const form = await client.session.form.get({ sessionID: review.sessionID, formID: review.formID })
-        if (form.state.status === "cancelled") await save({ ...review, status: "cancelled" }, review)
-        if (form.state.status === "answered") await apply(review, form.state.answer)
       } catch (error) {
         // Validation failures are recoverable via the palette without retry loops.
         if (current(review)) await save({ ...review, status: "cancelled" }, review)
@@ -231,19 +191,41 @@ export function createReviewController(deps: Dependencies) {
   const reopen = async (sessionID: string) => {
     const value = state.reviews[sessionID]
     const stored = value ? { ...value } : undefined
-    if (!stored) { await discover(sessionID); return }
+    if (!stored) {
+      await discover(sessionID)
+      if (!state.reviews[sessionID]) throw new Error("There is no plan to display for this session")
+      return
+    }
     if (stored.status === "uncertain" || stored.status === "applying") {
       throw new Error("Handoff state is uncertain. Inspect session history before retrying; no automatic implementation replay was performed.")
     }
+    if (stored.status === "sent" || stored.status === "stale") {
+      throw new Error("This plan review is no longer reopenable; create a new plan revision")
+    }
     if (!await fresh(stored)) throw new Error("This saved plan is no longer current; prepare a new plan in Plan mode")
-    if (stored.status === "pending") { await createForm(stored); return }
-    const review = { ...stored, formID: `frm_plan_${hash(stored.formID + Date.now()).slice(0, 32)}`, status: "pending" as const }
+    if (stored.status === "pending") return
+    const review = { ...stored, status: "pending" as const }
     // A completed handoff cannot reach this path because the active agent/context no longer match.
     if (!await save(review, stored)) return
-    await createForm(review)
+  }
+  const decide = async (sessionID: string, decision: "approve" | "revise", feedback = "") => {
+    const review = state.reviews[sessionID]
+    if (!review || review.status !== "pending") throw new Error("No pending plan review for this session")
+    if (inFlight.has(sessionID)) throw new Error("A plan review decision is already in progress")
+    inFlight.add(sessionID)
+    try {
+      await apply({ ...review }, decision, feedback)
+    } finally {
+      inFlight.delete(sessionID)
+    }
+  }
+  const cancel = async (sessionID: string) => {
+    const review = state.reviews[sessionID]
+    if (review?.status === "pending") await save({ ...review, status: "cancelled" }, review)
   }
   return {
-    discover, reconcile, reopen, report,
+    discover, reconcile, reopen, decide, cancel, report,
+    get: (sessionID: string) => state.reviews[sessionID],
     needsDiscovery: (s: SessionInfo) => deps.idle(s.id) && seen.get(s.id) !== s.time.updated,
     dispose: () => { stopped = true },
   }
