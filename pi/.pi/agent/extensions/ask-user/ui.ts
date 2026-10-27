@@ -103,9 +103,9 @@ export class QuestionUI {
     else if (matchesKey(data, "alt+right")) this.jump(this.state.page + 1);
     else if (this.kb.matches(data, "tui.select.pageDown")) this.scroll += 5;
     else if (this.kb.matches(data, "tui.select.pageUp")) this.scroll = Math.max(0, this.scroll - 5);
-    else if (this.kb.matches(data, "tui.select.up") || this.kb.matches(data, "tui.select.down")) {
+    else if (matchesKey(data, "ctrl+p") || matchesKey(data, "ctrl+n") || this.kb.matches(data, "tui.select.up") || this.kb.matches(data, "tui.select.down")) {
       const count = this.state.review ? this.state.questions.length : (this.state.question?.options?.length ?? 0);
-      const delta = this.kb.matches(data, "tui.select.up") ? -1 : 1;
+      const delta = matchesKey(data, "ctrl+p") || this.kb.matches(data, "tui.select.up") ? -1 : 1;
       this.state.cursor = Math.max(0, Math.min(count - 1, this.state.cursor + delta)); this.scroll = -1;
     } else if (this.kb.matches(data, "tui.select.confirm") || matchesKey(data, "ctrl+y") || matchesKey(data, Key.space)) {
       if (this.state.review) {
@@ -185,8 +185,8 @@ export class QuestionUI {
     const footer = this.editing
       ? "Esc actions (n note, d discuss) · Enter save · Tab next · Shift+Tab back · Shift+Enter newline · n/d are text while editing"
       : this.state.review
-        ? "d discuss highlighted · Tab next · Shift+Tab back · ↑↓ select · Space edit · Enter/Ctrl+Y submit (skips allowed) · Esc cancel"
-        : "n note · d discuss · Tab next · Shift+Tab back · ↑↓ move · Enter/Ctrl+Y/Space choose · Esc cancel";
+        ? "d discuss highlighted · Tab next · Shift+Tab back · ↑↓/Ctrl+P/N select · Space edit · Enter/Ctrl+Y submit (skips allowed) · Esc cancel"
+        : "n note · d discuss · Tab next · Shift+Tab back · ↑↓/Ctrl+P/N move · Enter/Ctrl+Y/Space choose · Esc cancel";
     const help = wrapTextWithAnsi(footer, width).map(s => this.theme.fg("dim", s));
     // Pi 1.4 Editor word wrapping can recurse on wide glyphs at width <= 2.
     // Give its internal layout a safe width, then clip final output to the terminal.

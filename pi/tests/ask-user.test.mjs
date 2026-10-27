@@ -50,6 +50,16 @@ test('Tab/Shift+Tab navigate every page without selecting or submitting', () => 
  assert.equal(Check(ResultSchema,f.result()),true);
 });
 
+test('Ctrl+P and Ctrl+N move the selection up and down', () => {
+ const f=fixture(); const key=k=>f.ui.handleInput(k);
+ key('\x0e'); assert.equal(f.ui.state.cursor,1); // Ctrl+N down
+ key('\x10'); assert.equal(f.ui.state.cursor,0); // Ctrl+P up
+ key('\x10'); assert.equal(f.ui.state.cursor,0); // clamp at first option
+ key('\r'); key('\t'); key('\t'); key('\t'); // review page
+ key('\x0e'); assert.equal(f.ui.state.cursor,1);
+ key('\x10'); assert.equal(f.ui.state.cursor,0);
+});
+
 test('notes can be added, revised, removed and reviewed independently of answers', () => {
  const f=fixture(); const key=k=>f.ui.handleInput(k);
  for (let page=0;page<questions.length;page++) {
