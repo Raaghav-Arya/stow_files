@@ -7,7 +7,7 @@ Markdown is trimmed at its
 outer edges before hashing and saving. The final assistant response contains
 only that receipt and `<!-- opencode-plan-ready -->`, not a repeated copy of the plan. A server RPC serves the exact
 revision to the TUI and verifies its session, originating Plan turn, and content hash. The TUI opens a scrollable
-session panel with themed saved Markdown and visible **Approve and build** / **Request changes** actions (`Ctrl+A` / `Ctrl+R`). Navigate the plan with `j`/`k`, arrow keys, Page Up/Down, and Home/End. Request changes opens a multiline editor; use Enter for new lines, Ctrl+Enter to submit, or Escape to cancel:
+session panel with themed saved Markdown and visible **Approve and build** / **Request changes** actions (`Ctrl+A` / `Ctrl+R`). Headings use theme colors and emphasis; terminal headings cannot have independent font sizes. Press Ctrl+Q to enter review navigation, then use `j`/`k`, arrows, Page Up/Down, and Home/End to scroll the saved plan; Ctrl+Q exits navigation. Request changes opens a multiline editor: Enter submits nonempty feedback, `\` + Enter or Alt+Enter inserts a newline, and Escape cancels. Empty feedback stays in the editor:
 
 - **Approve and build**: resolve Build's effective model for this session's location, validate its availability,
   switch the session agent and model explicitly, and submit the exact approved plan with an idempotent message ID.
