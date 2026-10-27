@@ -1,8 +1,9 @@
 # Automatic Plan review (OpenCode V2)
 
-No slash command is needed. The server companion injects a plan-ready protocol and a `plan_review_submit` tool into
-Plan's model context. Plan submits the full Markdown once as tool input; the tool saves it as an immutable, private
-revision under `~/.opencode/plan/review/` and returns a compact revision receipt. Submitted Markdown is trimmed at its
+No slash command is needed to submit an initial plan. The server companion injects a plan-ready protocol and a
+`plan_review_submit` tool into Plan's model context. Plan submits the full Markdown once as tool input; the tool saves
+it as an immutable, private revision under `~/.opencode/plan/review/` and returns a compact revision receipt. Submitted
+Markdown is trimmed at its
 outer edges before hashing and saving. The final assistant response contains
 only that receipt and `<!-- opencode-plan-ready -->`, not a repeated copy of the plan. A server RPC serves the exact
 revision to the TUI and verifies its session, originating Plan turn, and content hash. The TUI opens a scrollable
