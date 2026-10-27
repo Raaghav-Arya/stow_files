@@ -1,55 +1,80 @@
-# Experimental Pi transcript navigation
+# Pi transcript navigation
 
-The working Ctrl+U/Ctrl+D configuration is committed in `1a5c531`.
-The navigation extension is a separate, reversible experiment.
+Navigation is provided by the published **pi-vim-navigation** npm package, not a
+local extension. Version **0.1.1** adds Ctrl+U/Ctrl+D half-page scrolling in NAV
+mode and has been verified interactively.
 
-Implementation: `.pi/agent/extensions/transcript-navigation.ts`, symlinked into
-`~/.pi/agent/extensions/`. Run `/reload` to load it. Stay in **Neovim terminal
-mode**; all navigation happens inside Pi, not in Neovim's terminal scrollback.
+- Source and README: https://github.com/Raaghav-Arya/pi-vim-navigation
+- npm: https://www.npmjs.com/package/pi-vim-navigation
+- Configuration: `.pi/agent/settings.json` contains `"npm:pi-vim-navigation"` in
+  `packages`.
+
+The former local `transcript-navigation.ts` implementation and loader have been
+removed. Do not reinstall them alongside the npm package.
+
+## Install and update
+
+```sh
+pi install npm:pi-vim-navigation
+# Update an existing installation:
+pi update npm:pi-vim-navigation
+```
+
+Run `/reload` or restart Pi after installation or updates. Publishing a new npm
+version does not automatically update an existing installation. Ctrl+U/Ctrl+D
+require version 0.1.1 or newer; updating a stale 0.1.0 installation resolved the
+missing shortcuts.
+
+Stay in **Neovim terminal mode**; all navigation happens inside Pi, not in
+Neovim's terminal scrollback.
 
 ## Keys (fullscreen only)
 
-- **Ctrl+Q**: toggle input/navigation mode. Returning to input follows latest output.
-- **j / k** or **Down / Up**: scroll one transcript line in navigation mode.
-- **gg / G**: jump to beginning/end in navigation mode.
-- **i**: leave navigation mode, jump to latest output, and edit the existing draft.
-- **Ctrl+U / Ctrl+D**, **PageUp / PageDown**, **Ctrl+Home / Ctrl+End**:
-  existing fullscreen transcript controls continue to work in either mode.
-- **Escape / Ctrl+C**: leave navigation mode without jumping the viewport, then
-  perform Pi's normal interrupt/clear action. Escape is not a mode-entry key.
+- **Ctrl+Q**: toggle INPUT/NAV mode. Returning to INPUT follows latest output.
+- **j / k** or **Down / Up**: scroll one transcript line in NAV mode.
+- **Ctrl+U / Ctrl+D**: scroll half a page up/down in NAV mode only. The amount is
+  half the current terminal height, rounded down to at least one line.
+- **gg / G**: jump to beginning/end in NAV mode.
+- **i**: leave NAV, jump to latest output, and edit the existing draft.
+- **PageUp / PageDown**, **Ctrl+Home / Ctrl+End**: Pi's fullscreen transcript
+  controls remain available in either mode.
+- **Escape / Ctrl+C**: leave NAV without jumping the viewport, then perform Pi's
+  normal interrupt/clear action. Escape is not a mode-entry key.
+
+There are no global Ctrl+U/Ctrl+D fullscreen keybinding overrides. In INPUT mode,
+Ctrl+U retains delete-to-line-start behavior; Ctrl+D deletes forward or exits
+when the editor is empty. The plugin handles scrolling only in NAV mode.
 
 The editor's bottom border shows INPUT or NAV. Unknown keys, Enter, and pasted
-text are ignored in navigation mode to protect the draft and avoid submitting it.
-This is transcript navigation, not Vim editing or selection. Pi's existing
-fullscreen search and mouse controls remain available. Dialogs retain their own
-keyboard handling. Regular mode is unchanged.
+text are ignored in NAV to protect the draft and avoid submitting it. This is
+transcript navigation, not Vim editing or selection. Pi's existing fullscreen
+search and mouse controls remain available. Dialogs retain their own keyboard
+handling. Regular mode is unchanged.
 
-The extension replaces the main editor with a `CustomEditor` subclass, following
-Pi's modal-editor example. Do not combine it with another extension that replaces
-the editor without explicitly composing them. It uses the installed fullscreen
-renderer's public scrolling methods, capability-checked for compatibility.
+The extension replaces the main editor with a `CustomEditor` subclass. Do not
+combine it with another extension that replaces the editor without explicitly
+composing them.
 
-## Disable
-
-Rename the live symlink so Pi no longer discovers it, then run `/reload`:
+## Remove
 
 ```sh
-mv ~/.pi/agent/extensions/transcript-navigation.ts \
-   ~/.pi/agent/extensions/transcript-navigation.ts.disabled
+pi remove npm:pi-vim-navigation
 ```
 
-To re-enable, rename it back and `/reload`. The Ctrl+U/Ctrl+D bindings remain
-unchanged either way. No Sidekick or tmux configuration was modified.
+Then run `/reload` or restart Pi. Stock Ctrl+U/Ctrl+D behavior remains unchanged.
 
 ## Tests
 
-From the stow repository root:
+From the stow repository root, with Pi and the npm package installed:
 
 ```sh
-node pi/tests/transcript-navigation.test.mjs
+PI_OFFLINE=1 node pi/tests/transcript-navigation.test.mjs
+PI_OFFLINE=1 node pi/tests/picker-accept.test.mjs
+PI_OFFLINE=1 node pi/tests/prompt-stash.test.mjs
+PI_OFFLINE=1 PI_AGENTS_HUB_CHILD=0 node pi/tests/feature-integration.test.mjs
 ```
 
-Tests load the installed Pi runtime and exercise its actual fullscreen input
-routing, stable renderer proxy, editor callbacks, and mode rendering without
-starting a terminal or making model requests. Set `PI_PACKAGE_ROOT` if Pi is not
-on PATH. Interactive feel and mouse behaviour still need a manual trial.
+These regression suites import the installed npm extension and use the real Pi
+runtime without making model requests. Set `PI_PACKAGE_ROOT` if Pi is not on
+PATH. The plugin repository also contains unit and real-editor integration tests
+for NAV-only half-page scrolling, terminal resizing, and stock INPUT editing.
