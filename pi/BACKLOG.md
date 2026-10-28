@@ -1,8 +1,10 @@
 # Pi customization backlog
 
-Local tickets for Claude Code-style workflows. PI-003 and PI-006/007/008/013/014
-have local implementations; see individual integration/validation status below.
-No third-party Pi packages have been installed.
+Open local tickets for Claude Code-style workflows. PI-003 and PI-013 have
+partial implementations; see their remaining requirements below. Completed,
+tested tickets PI-006/007/008/014 have been removed from this backlog; their
+usage and validation notes remain in PROMPT-STASH.md, CLEAR-ALIAS.md,
+ASK-USER.md and PICKER-ACCEPT.md. PI-003 uses an installed third-party fork.
 
 ## How to resume
 
@@ -20,12 +22,13 @@ or use extension shortcuts and the UI editor APIs where possible.
 Statuses: proposed -> ready -> in-progress -> done (or blocked).
 PI-003 is **in-progress** (the installed `Raaghav-Arya/pi-subagents` fork is the
 active implementation; superseded custom Hub source and tests have been removed).
-PI-006/007/008/013/014 are **done**: implemented,
-parent-reviewed, linked for live discovery, and independently offline-tested.
-Completion records implementation, not unperformed physical terminal acceptance;
-those manual checks remain documented follow-ups. Existing sessions must
-reload/restart. The former custom-Hub plan safety adapter has been removed;
-fork delegation policy compatibility remains unverified. See
+PI-013's **base workflow is implemented and offline-tested**, but its proposal
+review, exploration delegation and fork-policy integration follow-ups remain open.
+Completed tickets were removed after all 10 test/typecheck entry points passed
+again; this does not claim unperformed physical terminal acceptance. Manual
+follow-ups for PI-006/007/014 remain in their feature documentation. Existing
+sessions must reload/restart. The former custom-Hub plan safety adapter has been
+removed; fork delegation policy compatibility remains unverified. See
 `pi/ORCHESTRATION-LIMITATIONS.md` and `node pi/tests/feature-integration.test.mjs`
 for current discovery/dispatch checks.
 Other tickets remain **proposed** unless marked otherwise.
@@ -67,10 +70,9 @@ Other tickets remain **proposed** unless marked otherwise.
 
 ## Suggested sequence
 
-1. PI-007 (small alias), PI-006 (draft UX), PI-008 (reusable questions UI).
-2. PI-001a (skills/commands discovery) and PI-003 (minimal subagents).
-3. PI-005 (worktrees) and PI-002 (safe checkpoints/rewind).
-4. PI-004 (secondary-LLM permission classifier); expand PI-001 compatibility
+1. PI-001a (skills/commands discovery) and PI-003 (remaining fork requirements).
+2. PI-005 (worktrees) and PI-002 (safe checkpoints/rewind).
+3. PI-004 (secondary-LLM permission classifier); expand PI-001 compatibility
    incrementally against a versioned Claude Code compatibility matrix.
 
 Sequence is a recommendation, not a user-approved priority list. Safety design
@@ -497,125 +499,6 @@ launch/switch UX, dependency/bootstrap commands, merge/cherry-pick preference.
 
 **References:** Git worktree documentation; Pi session and SDK/CLI cwd contracts.
 
-## PI-006 — Prompt stashing (Ctrl+S)
-
-**Status:** done — implemented, reviewed, integrated; offline checks pass. Follow-up: reload/manual terminal acceptance | **Size:** small/medium
-
-**Implementation:** `extensions/prompt-stash/index.ts`, live link installed;
-usage/limits in `PROMPT-STASH.md`. Single memory slot, session-local;
-restore into empty input; nonempty input replaces the previous stash and clears
-the editor, as explicitly requested by the user. Submitting an ordinary interactive
-message automatically restores/consumes the stash into the empty editor without
-sending it; a newer nonempty draft is never overwritten by automatic restore.
-Expanded text preserved; cursor/undo/attachment bytes and restart recovery are
-not provided. Actual live discovery and registered Ctrl+S dispatch tested.
-
-**Current Pi:** Editor undo/history and queued message restore exist, but no
-prompt-stash action is listed in the installed keybinding reference.
-
-**Implemented semantics:** Single-slot text stash, no persistence across session
-replacement/reload/restart. Ctrl+S on a new nonempty draft overwrites any prior
-stash (user-approved), with no swapping/combining; empty input restores/consumes
-the stash. User-requested automatic restoration occurs after interactive message
-submission, not assistant completion, and excludes RPC/extension input and
-slash/shell commands. Text paths only for attachments and no cursor restoration.
-
-**Acceptance:**
-- Ctrl+S stashes an unsent draft and clears the editor; an empty editor restores
-  the stash. Sending an interactive message auto-restores the stash into empty
-  input without submitting it; retain stash if a newer draft is already present.
-- Ctrl+S on nonempty input explicitly replaces the previous stash; notify when
-  replacing. Preserve multiline/pasted content and define attachment handling
-  without promising unsupported editor state restoration.
-- Show stash availability; do not submit or leak it into model context.
-- Compose with transcript-navigation editor; do not replace it independently.
-- Preserve Ctrl+S inside model/thinking/settings/session dialogs; test terminal
-  flow-control (XON/XOFF), Neovim terminal and tmux forwarding.
-
-**References:** `docs/keybindings.md`, `docs/extensions.md`, editor access API.
-
-## PI-007 — `/clear` alias for `/new`
-
-**Status:** done — implemented, reviewed, integrated; 5 tests and actual offline RPC replacement pass. Follow-up: reload/manual terminal acceptance | **Size:** small
-
-**Implementation:** `.pi/agent/extensions/clear-alias/index.ts`; usage in
-`CLEAR-ALIAS.md`, plan/source review in `research/PI-007-*.md`.
-
-**Current Pi:** `/new` exists; `/clear` is not in the installed built-in list.
-Ctrl+C clearing editor text is unrelated.
-
-**Acceptance:**
-- `/clear` starts a fresh session using supported command-context session APIs.
-- Match `/new` session replacement, shutdown/startup and veto/trust behavior;
-  do not implement a cosmetic transcript wipe or delete saved sessions.
-- Define behavior while streaming and with an unsent draft; match `/new` where
-  possible and document any unavoidable difference.
-- Add command discovery/help and tests for old-session preservation and reload.
-
-**References:** command context `newSession` contract, `docs/sessions.md`,
-`examples/extensions/commands.ts`.
-
-## PI-008 — AskUser tool and polished question TUI
-
-**Status:** done — implemented, regression-tested and user-accepted after reload, including final note placement and review colors | **Size:** medium
-
-**Implementation:** `extensions/ask-user/{index,model,ui}.ts`, live link installed.
-`ask_user` is model-callable, with a local stable-ID schema (not Claude wire
-compatibility), inline custom screen and mandatory review. RPC/headless return
-needs-user-input. Allowed for clarification in plan mode; usage in `ASK-USER.md`.
-
-**Current Pi:** Built-in extension APIs supply select/confirm/input/editor/custom
-UI. Official `question.ts` and `questionnaire.ts` demonstrate model-callable
-questions, but are not automatically enabled as a Claude-style AskUser tool.
-
-**Implemented defaults:** `ask_user`, local non-Claude schema, themed inline
-custom screen with single/multi/text questions and explicit final review.
-User verified submission, choices/text, multiline notes, discussion and cancellation.
-Feedback fixes permit explicit partial or all-skipped submission (`answers` plus
-`skippedQuestionIds`), keep notes separate,
-omit unsaved drafts, enter text editing automatically, improve review layout, and
-render cancellation status only. User reloaded, exercised the revised controls,
-and confirmed that everything looks fine. The revision retains:
-- Tab/Shift+Tab next/previous question (including inside editors); never selection
-  or submission, and never global plan-mode switching while AskUser owns focus.
-- `n` for optional per-question multiline notes, returned separately from answers.
-- `d` to discuss any question (or highlighted question on review), returning
-  `discussion-requested` with clearly partial selections, text drafts and notes.
-  Discuss in conversation, then generate a fresh set of still-relevant questions;
-  no automatic reopening or stale-question replay.
-- Dedicated labelled descriptive-answer/note editors, not the main prompt line;
-  preserved drafts, multiple-choice checkboxes, and no stale-answer submission.
-- Numbered review blocks with bullet selections, unanswered/draft distinctions,
-  multiline notes, no visible internal IDs, and cancellation rendering without recap.
-- Follow-up: saved `Note:` blocks sit below choices and are scrolled into view
-  after saving; no duplicate preview while editing. All review headings are
-  accent-colored, answers use normal text, and notes use a distinct theme role.
-  Tests cover note visibility with long choices/resize and actual dark/light colors;
-  user accepted the final placement/color changes after reload.
-
-The feedback revision is covered by 33 focused AskUser tests and typecheck;
-Luna high implemented the fixes, and parent review added regression coverage for
-legacy results, mixed partial submission, preview duplication and themed review
-scrolling. Full-suite checks are recorded in the implementation report.
-
-**Acceptance:**
-- Structured single choice, multi-select and free text with option descriptions;
-  Tab/Shift+Tab navigation, optional notes, automatic multiline text entry and a
-  final explicit review/submit step allowing unanswered questions. Always offer
-  discussion without submitting the questionnaire; reassess before a fresh request.
-- Keyboard-first controls, visible help, cancellation, and no default/fabricated
-  answer when cancelled. Preserve current prompt draft.
-- Typed validated answer results with stable IDs; concise transcript rendering.
-- Handle abort/reload/exit, concurrent question requests, resize, scrolling,
-  narrow width, Unicode, themes and proper editor focus/IME propagation.
-- TUI uses custom components; RPC uses supported dialogs or reports unsupported
-  interaction. Headless mode returns an explicit needs-user-input result.
-- Keep UI logic separate from the tool so rewind/auto/worktree commands can reuse
-  components without treating a tool answer as blanket authorization.
-
-**References:** `docs/tui.md`, `docs/rpc-extension-ui.md`,
-`examples/extensions/question.ts`, `questionnaire.ts`, `qna.ts`.
-
 ## PI-009 — Browser use for website/app testing
 
 **Status:** proposed | **Size:** medium/large
@@ -946,39 +829,6 @@ orchestration framework or automatic worktree management.
 `docs/security.md`, `docs/tui.md`; public implementations to research read-only
 and pin before adopting design details.
 
-## PI-014 — Ctrl+Y to accept picker options
-
-**Status:** done — implemented, integrated; offline tests pass. Follow-up: reload/manual terminal validation | **Size:** small
-
-**Implementation:** `extensions/picker-accept/input.ts` composed into the existing
-transcript editor; `keybindings.json` adds Ctrl+Y to `tui.select.confirm` alongside
-Enter. Usage/coverage/disable notes: `PICKER-ACCEPT.md`.
-
-**User decision:** Losing yank in favor of acceptance is explicitly approved,
-including confirmation/submission in text dialogs. Main-editor completion still
-uses Tab's no-submit path. Custom dialogs must honor the confirm action or opt in.
-
-**Request:** Allow Ctrl+Y to accept the highlighted picker/completion option,
-like Neovim completion acceptance and similar to the existing Tab behavior.
-Keep Tab available; Ctrl+Y is an additional binding, not a replacement.
-
-**Acceptance:**
-- Ctrl+Y accepts the highlighted option in supported pickers/completion menus;
-  match the existing acceptance behavior for that UI rather than submitting the
-  main prompt accidentally.
-- Audit built-in and extension pickers; document coverage and any unsupported
-  surfaces instead of claiming a global binding works everywhere.
-- Bind Ctrl+Y to confirmation, including text-dialog submission as explicitly
-  approved by the user. Preserve Tab and prevent accidental main-prompt submission
-  while accepting autocomplete; document custom-dialog coverage.
-- Compose with the existing transcript-navigation editor and PI-012 keybindings;
-  do not add a competing editor replacement.
-- Test Ctrl+Y and unchanged Tab behavior, filtering/navigation, cancellation,
-  empty/no-selection states, and forwarding through WezTerm/tmux/Neovim terminal.
-- Include usage and disable/rebinding instructions.
-
-**Dependencies:** Coordinate PI-012 (shortcut audit) and PI-008 (reusable pickers).
-
 ## PI-015 — Context-aware shortcut conflict diagnostics
 
 **Status:** proposed | **Size:** small/medium for targeted core fix; medium for general scope support
@@ -1223,3 +1073,59 @@ Pi use is not permitted by the applicable terms of service.
 PI-017 (optional routing to a harness-backed task executor, not a subscription
 provider bridge). Availability and permitted automation must be established before
 committing to an implementation.
+
+---
+
+## PI-019 — Theming and automatic descriptive session names
+
+**Status:** proposed | **Size:** medium; split into independent slices
+
+**Request:** Add support for theming and automatically name sessions so it is
+easy to see at a glance what each session is doing.
+
+### PI-019a — Theming and UI customization
+
+- Audit Pi's existing theme support and the current local editor/footer/dialog
+  customizations before adding an extension. Identify which requested styling
+  needs are already covered by built-in configuration.
+- Research existing theme/UI plugins before designing or implementing changes.
+  The user suggested **zentui** as a possible candidate; verify its exact name,
+  repository, Pi compatibility and actual capabilities rather than assuming it
+  exists or fits this setup. Compare suitable alternatives under the shared
+  source/dependency review and reuse policy; record pinned provenance, licenses,
+  maintenance/adoption evidence, security findings and the reuse decision in
+  `research/PI-019-references.md`. No implicit install or downloaded-code execution.
+- Agree on the desired visual scope and theme selection with the user. Compose
+  with existing transcript navigation, prompt status, plan mode and AskUser;
+  avoid competing editor/footer replacements or hard-coded colors that bypass
+  the selected theme.
+- Provide discoverable theme selection, persistence and restore/disable controls.
+  Validate light/dark themes, contrast, narrow terminals, Unicode, resize and the
+  actual WezTerm/tmux/Neovim terminal stack. Document unsupported surfaces.
+
+### PI-019b — Automatic session naming
+
+- Generate a concise, descriptive name from the session's task/context so the
+  session picker makes active and saved work recognizable at a glance. Research
+  existing built-in capabilities and reviewed plugins before adding local code.
+- Use supported session metadata/naming APIs; do not merely change a display
+  label while leaving saved sessions unnamed. Preserve session identity/history.
+- Define when names are generated and whether meaningful task changes warrant
+  updates. Preserve explicit user names and renames; provide manual regenerate
+  and disable controls without repeatedly overwriting user choices.
+- Decide deterministic versus model-generated naming and, if a model is used,
+  its configurable profile, bounded context, timing, cost and timeout behavior.
+  Reuse PI-017 routing where appropriate; do not send private session content to
+  an unapproved provider or include secrets in names/logs. Naming must not block
+  the coding turn or start an implementation action.
+- Handle new/clear, reload/resume, branching/forking, concurrent sessions and
+  asynchronous stale results without applying a name to the wrong session.
+  Specify subagent naming separately from main-session names and document
+  interactive/RPC/headless behavior and failure fallback.
+- Test naming quality with representative sanitized tasks, manual-name
+  preservation, persistence, lifecycle races, cancellation and provider failures.
+  Include usage/configuration and disable instructions.
+
+**Dependencies:** PI-012 (UI composition), PI-017 (optional naming model profile),
+PI-003 (optional subagent naming). Each slice can ship independently; neither
+requires an orchestration framework.
