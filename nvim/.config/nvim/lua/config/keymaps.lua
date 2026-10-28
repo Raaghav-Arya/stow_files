@@ -33,6 +33,7 @@ vim.keymap.set("n", "<C-S-v>", '"+p', { noremap = true, desc = "Paste from clipb
 for _, key in ipairs({ "<C-v>", "<C-S-v>" }) do
   vim.keymap.set("i", key, '<C-r><C-o>+', { noremap = true, desc = "Paste from clipboard" })
 end
+vim.keymap.set("c", "<C-v>", "<C-r>+", { noremap = true, desc = "Paste from clipboard" })
 
 -- Terminal mode clipboard mappings for better integration with sidekick
 vim.keymap.set("t", "<C-S-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
@@ -99,5 +100,4 @@ end, { desc = "Explorer Snacks (cwd)" })
 vim.keymap.set("n", "<leader>E", function()
   Snacks.explorer({ cwd = LazyVim.root() })
 end, { desc = "Explorer Snacks (root dir)" })
-
 
