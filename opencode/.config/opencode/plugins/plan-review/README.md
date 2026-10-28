@@ -44,8 +44,9 @@ Edit `~/.config/opencode/opencode.json` (project overrides are respected):
 }
 ```
 
-The server companion applies Plan/Build's configured model before each new prompt. The review handoff resolves
-these settings afresh; there are no hard-coded fallback models. Plan workflow guidance is in
+The server companion applies Plan/Build's configured model when the active agent switches into Plan or Build.
+Changing the model manually is respected until the active agent changes again. The review handoff resolves these
+settings afresh; there are no hard-coded fallback models. Plan workflow guidance is in
 `~/.config/opencode/instructions/plan-workflow.md`.
 
 ## Validation

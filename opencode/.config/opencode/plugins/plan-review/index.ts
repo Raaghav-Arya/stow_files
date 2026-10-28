@@ -1,10 +1,43 @@
 import { Plugin } from "@opencode/plugin"
 import { READY, savePlan, loadPlan } from "./plan.ts"
 import { PlanReview } from "./rpc.ts"
+import { shouldApplyModeModel } from "./mode-model.ts"
 
 export default Plugin.define({
   id: "raaghav.plan-review",
   async setup(ctx) {
+    const agentsBySession = new Map<string, string>()
+    let cursor: string | undefined
+    do {
+      const page = await ctx.session.list({ directory: ctx.location.directory, limit: 100, ...(cursor ? { cursor } : {}) })
+      for (const session of page.data) agentsBySession.set(session.id, session.agent)
+      cursor = page.cursor.next ?? undefined
+    } while (cursor)
+
+    const eventController = new AbortController()
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({
+          types: ["session.created", "session.updated"],
+          signal: eventController.signal,
+        })) {
+          const session = event.properties.info
+          const previous = agentsBySession.get(session.id)
+          agentsBySession.set(session.id, session.agent)
+          if (!shouldApplyModeModel(previous, session.agent)) continue
+
+          try {
+            const { data: agent } = await ctx.agent.get({ agentID: session.agent, location: session.location })
+            if (agent.model) await ctx.session.switchModel({ sessionID: session.id, model: agent.model })
+          } catch (error) {
+            console.error(`Failed to apply ${session.agent} model after agent switch`, error)
+          }
+        }
+      } catch (error) {
+        if (!eventController.signal.aborted) console.error("Plan-review agent switch listener failed", error)
+      }
+    })()
+
     await ctx.rpc.register(PlanReview, {
       get: async (input, rpcContext) => {
         const request = input as { sessionID: string; revision: string; digest: string }
@@ -48,13 +81,6 @@ export default Plugin.define({
         },
       })
     })
-    await ctx.session.hook("prompt", async (event) => {
-      const session = await ctx.session.get({ sessionID: event.sessionID })
-      if (session.agent !== "plan" && session.agent !== "build") return
-      const { data: agent } = await ctx.agent.get({ agentID: session.agent })
-      if (agent.model && JSON.stringify(session.model) !== JSON.stringify(agent.model)) {
-        await ctx.session.switchModel({ sessionID: event.sessionID, model: agent.model })
-      }
-    })
+    return () => eventController.abort()
   },
 })
