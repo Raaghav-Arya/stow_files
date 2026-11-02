@@ -10,7 +10,9 @@ return {
     ---@type obsidian.config
     opts = {
         legacy_commands = false, -- this will be removed in the next major release
-         footer = {
+        -- disable obsidian's built-in UI so render-markdown can render checkboxes/markdown
+        ui = { enable = false },
+        footer = {
             enabled = false,
         },
         workspaces = {
