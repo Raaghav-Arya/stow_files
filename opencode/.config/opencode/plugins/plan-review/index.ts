@@ -56,7 +56,7 @@ export default Plugin.define({
     })
     await ctx.session.hook("context", (event) => {
       if (event.agent !== "plan") return
-      event.system.push({ type: "text", text: `When an implementation plan is ready for approval, submit the complete Markdown plan using the plan_review_submit tool. Then respond with only the short receipt returned by the tool and end with ${READY} on its own line. Do not include the plan body in your final response. Do not use this tool or marker for clarification questions, status updates, research-only answers, or incomplete plans. The TUI displays the saved revision and asks for approval; do not implement it yourself.` })
+      event.system.push({ type: "text", text: `When an implementation plan is ready for approval, submit the complete Markdown plan using the plan_review_submit tool. In your final response, copy the complete receipt returned by plan_review_submit verbatim, including both the full revision and digest. Do not paraphrase or omit any part of the receipt. Then append ${READY} on its own line. The exact receipt is required for the review panel to recognize the submitted plan. Do not include the plan body in your final response. Do not use this tool or marker for clarification questions, status updates, research-only answers, or incomplete plans. The TUI displays the saved revision and asks for approval; do not implement it yourself.` })
     })
     await ctx.tool.transform((editor) => {
       editor.add({

@@ -47,3 +47,11 @@ test("remote revision retrieval requires session, revision, and digest and retur
   assert.match(server, /context\.agent !== "plan"/)
   assert.match(tui, /context\.client\.rpc\(PlanReview\)\.get/)
 })
+
+test("Plan instructions preserve the complete review receipt and ready marker", async () => {
+  const server = await source("./index.ts")
+  assert.match(server, /copy the complete receipt returned by plan_review_submit verbatim/)
+  assert.match(server, /including both the full revision and digest/)
+  assert.match(server, /Do not paraphrase or omit any part of the receipt/)
+  assert.match(server, /Then append \$\{READY\} on its own line/)
+})

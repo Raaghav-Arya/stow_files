@@ -3,9 +3,6 @@
   "plugins": [
     "./plugins/plan-review"
   ],
-  "instructions": [
-    "~/.config/opencode/instructions/plan-workflow.md"
-  ],
   "agents": {
     "plan": {
       "model": "openai/gpt-6-sol#medium"
