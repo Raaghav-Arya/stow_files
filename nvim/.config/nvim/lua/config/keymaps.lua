@@ -3,6 +3,33 @@
 
 local opts = { noremap = true, silent = true }
 
+-- Switch to a numbered tabpage
+for i = 1, 9 do
+  vim.keymap.set("n", "<leader><Tab>" .. i, function()
+    local tabpage = vim.api.nvim_list_tabpages()[i]
+    if tabpage then
+      vim.api.nvim_set_current_tabpage(tabpage)
+    end
+  end, { noremap = true, silent = true, desc = "Go to tab " .. i })
+end
+
+vim.keymap.set("n", "<leader><Tab>n", function()
+  vim.ui.input({ prompt = "Directory for new tab: " }, function(path)
+    if not path or path == "" then
+      return
+    end
+
+    path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+    if vim.fn.isdirectory(path) ~= 1 then
+      vim.notify("Not a directory: " .. path, vim.log.levels.ERROR)
+      return
+    end
+
+    vim.cmd("tabnew")
+    vim.cmd("tcd " .. vim.fn.fnameescape(path))
+  end)
+end, { noremap = true, silent = true, desc = "New tab at directory" })
+
 -- Center cursor when scrolling
 vim.keymap.set({"n"}, "<C-d>", "<C-d>zz0", opts)
 vim.keymap.set({"n"}, "<C-u>", "<C-u>zz0", opts)
@@ -100,4 +127,3 @@ end, { desc = "Explorer Snacks (cwd)" })
 vim.keymap.set("n", "<leader>E", function()
   Snacks.explorer({ cwd = LazyVim.root() })
 end, { desc = "Explorer Snacks (root dir)" })
-
