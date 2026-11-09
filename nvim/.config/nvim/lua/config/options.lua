@@ -21,3 +21,6 @@ vim.o.cmdheight = 0 -- Hide command line to eliminate bottom gap
 
 vim.g.root_spec = { { "lsp", ".git", "lua" }, "cwd" }
 vim.o.exrc = true
+
+-- Keep vim-eunuch from overriding mini.pairs' insert-mode Enter behavior.
+vim.g.eunuch_no_maps = true
