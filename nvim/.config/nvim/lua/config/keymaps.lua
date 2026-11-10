@@ -3,11 +3,21 @@
 
 local opts = { noremap = true, silent = true }
 
--- Center cursor when scrolling
-vim.keymap.set({"n", "i"}, "<C-d>", "<C-d>zz0", opts)
-vim.keymap.set({"n", "i"}, "<C-u>", "<C-u>zz0", opts)
-vim.keymap.set({"n", "i"}, "<C-f>", "<C-f>zz0", opts)
-vim.keymap.set({"n", "i"}, "<C-b>", "<C-b>zz0", opts)
+-- Switch to a numbered tabpage
+for i = 1, 9 do
+  vim.keymap.set("n", "<leader><Tab>" .. i, function()
+    local tabpage = vim.api.nvim_list_tabpages()[i]
+    if tabpage then
+      vim.api.nvim_set_current_tabpage(tabpage)
+    end
+  end, { noremap = true, silent = true, desc = "Go to tab " .. i })
+end
+
+-- Center cursor when scrolling (normal mode only, so insert-mode Ctrl+d keeps default behavior)
+vim.keymap.set({"n"}, "<C-d>", "<C-d>zz0", opts)
+vim.keymap.set({"n"}, "<C-u>", "<C-u>zz0", opts)
+vim.keymap.set({"n"}, "<C-f>", "<C-f>zz0", opts)
+vim.keymap.set({"n"}, "<C-b>", "<C-b>zz0", opts)
 
 -- Delete without yanking (don't lose clipboard)
 vim.keymap.set({ "n", "v" }, "d", '"_d', { noremap = true, desc = "Delete without yanking" })
@@ -27,6 +37,13 @@ vim.keymap.set("n", "yX", '"+X', { noremap = true, desc = "Cut character before 
 
 -- Cut in visual mode: just use 'x' (simpler)
 vim.keymap.set("v", "x", '"+d', { noremap = true, desc = "Cut selection to clipboard" })
+
+-- Clipboard paste in file buffers (keep normal-mode Ctrl+V for visual blocks)
+vim.keymap.set("n", "<C-S-v>", '"+p', { noremap = true, desc = "Paste from clipboard" })
+for _, key in ipairs({ "<C-v>", "<C-S-v>" }) do
+  vim.keymap.set("i", key, '<C-r><C-o>+', { noremap = true, desc = "Paste from clipboard" })
+end
+vim.keymap.set("c", "<C-v>", "<C-r>+", { noremap = true, desc = "Paste from clipboard" })
 
 -- Terminal mode clipboard mappings for better integration with sidekick
 vim.keymap.set("t", "<C-S-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
@@ -103,5 +120,21 @@ end, { desc = "Explorer Snacks (cwd)" })
 vim.keymap.set("n", "<leader>E", function()
   Snacks.explorer({ cwd = LazyVim.root() })
 end, { desc = "Explorer Snacks (root dir)" })
+
+-- Open a new tab at a prompted path (directory becomes the tab's cwd, file opens directly)
+vim.keymap.set("n", "<leader><Tab>n", function()
+  vim.ui.input({ prompt = "New tab path: ", completion = "file" }, function(path)
+    if not path or path == "" then
+      return
+    end
+    path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+    if vim.fn.isdirectory(path) == 1 then
+      vim.cmd("tabnew")
+      vim.cmd("tcd " .. vim.fn.fnameescape(path))
+    else
+      vim.cmd("tabnew " .. vim.fn.fnameescape(path))
+    end
+  end)
+end, { noremap = true, silent = true, desc = "New tab at prompted path" })
 
 

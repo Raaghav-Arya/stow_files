@@ -23,4 +23,7 @@ vim.o.swapfile = false -- Disable swapfile creation
 vim.g.root_spec = { ".git", { "lsp", "lua" }, "cwd" }
 vim.o.exrc = true
 
+-- Keep vim-eunuch from overriding mini.pairs' insert-mode Enter behavior.
+vim.g.eunuch_no_maps = true
+
 vim.g.vimtex_view_method = "zathura"
