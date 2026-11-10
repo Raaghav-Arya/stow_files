@@ -15,6 +15,7 @@ return {
     { import = "plugins.git.gitsigns" },
     { import = "plugins.git.lazygit" },
     { import = "plugins.git.snacks" },
+    { import = "plugins.git.worktrees" },
     { import = "plugins.git.which-key" },
     { import = "plugins.git.codediff"},
 }
