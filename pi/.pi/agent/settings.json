@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.4.0",
+  "lastChangelogVersion": "1.5.2",
   "deviceId": "5d6847c2-ad08-4c02-b838-0137e0908987",
   "defaultProvider": "openai",
   "defaultModel": "gpt-6.1-sol",
@@ -15,5 +15,8 @@
   "packages": [
     "npm:pi-vim-navigation",
     "git:github.com/Raaghav-Arya/pi-subagents@ca93a5247e72e7053fcd10bea7125d6c4205f949"
-  ]
+  ],
+  "extensionChangelogVersions": {
+    "{\"source\":\"git:github.com/Raaghav-Arya/pi-subagents@ca93a5247e72e7053fcd10bea7125d6c4205f949\",\"scope\":\"user\"}": "0.22.0"
+  }
 }
