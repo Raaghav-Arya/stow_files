@@ -613,6 +613,8 @@ return {
         win = {
           keys = {
             prompt = false, -- pass <C-p> through to Claude Code for navigation
+            hide_ctrl_q = false, -- unbind <C-q> hide in normal mode
+            stopinsert = false, -- unbind <C-q> exit-terminal in terminal mode
             buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
             nav_left  = { "<c-h>", tmux_nav("NvimTmuxNavigateLeft"),  mode = "t", desc = "navigate left (tmux-aware)" },
             nav_down  = { "<c-j>", tmux_nav("NvimTmuxNavigateDown"),  mode = "t", desc = "navigate down (tmux-aware)" },
