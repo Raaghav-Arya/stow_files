@@ -1,22 +1,61 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "model": "llm-jwt-bridge/claude-sonnet-5-5",
-  "small_model": "llm-jwt-bridge/claude-haiku-5-5",
-  "provider": {
-    "llm-jwt-bridge": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "TI LLM Gateway (JWT bridge)",
-      "options": {
-        // Bridge strips /up and injects the Kerberos JWT; the key is ignored.
-        "baseURL": "http://127.0.0.1:17291/up/v1",
-        "apiKey": "sk-any"
-      },
-      "models": {
-        "claude-opus-5-5": { "name": "Claude Opus 5.5", "limit": { "context": 1000000, "output": 128000 } },
-        "claude-sonnet-5-5": { "name": "Claude Sonnet 5.5", "limit": { "context": 1000000, "output": 128000 } },
-        "claude-haiku-5-5": { "name": "Claude Haiku 5.5", "limit": { "context": 1000000, "output": 128000 } },
-        "onprem/mistral-large-4": { "name": "Mistral Large 4 (on-prem)", "limit": { "context": 1024896, "output": 128000 } }
-      }
-    }
-  }
+    "$schema": "https://opencode.ai/config.json",
+    "plugins": ["./plugins/plan-review"],
+    "agents": {
+        "plan": { "model": "llm-jwt-bridge/claude-opus-5-5" },
+        "build": { "model": "llm-jwt-bridge/claude-sonnet-5-5" },
+        "explore": { "model": "llm-jwt-bridge/claude-haiku-5-5" },
+    },
+    "experimental": {
+        "todo": true,
+        "subagent_depth": 3,
+    },
+    // Org policy: only models served through the LiteLLM gateway are allowed.
+    "policies": [
+        { "action": "provider.use", "resource": "*", "effect": "deny" },
+        { "action": "provider.use", "resource": "llm-jwt-bridge", "effect": "allow" },
+    ],
+    "model": "llm-jwt-bridge/claude-sonnet-5-5",
+    "small_model": "llm-jwt-bridge/onprem/nvidia-nemotron-3.5-super",
+    "provider": {
+        "llm-jwt-bridge": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "TI LLM Gateway (JWT bridge)",
+            "options": {
+                // Bridge strips /up and injects the Kerberos JWT; the key is ignored.
+                "baseURL": "http://127.0.0.1:17291/up/v1",
+                "apiKey": "sk-any",
+            },
+            "models": {
+                "claude-opus-5-5": {
+                    "name": "Claude Opus 5.5",
+                    "limit": { "context": 256000, "output": 128000 },
+                },
+                "claude-sonnet-5-5": {
+                    "name": "Claude Sonnet 5.5",
+                    "limit": { "context": 256000, "output": 128000 },
+                },
+                "claude-haiku-5-5": {
+                    "name": "Claude Haiku 5.5",
+                    "limit": { "context": 1000000, "output": 128000 },
+                },
+                "gpt-6.1-sol": {
+                    "name": "GPT-6.1 Sol",
+                    "limit": { "context": 256000, "output": 131072 },
+                },
+                "gpt-6-luna": {
+                    "name": "GPT-6 Luna",
+                    "limit": { "context": 922000, "output": 128000 },
+                },
+                "onprem/nvidia-nemotron-3.5-super": {
+                    "name": "Nemotron 3.5 Super (on-prem)",
+                    "limit": { "context": 1048576, "output": 1048576 },
+                },
+                "onprem/mistral-large-4": {
+                    "name": "Mistral Large 4 (on-prem)",
+                    "limit": { "context": 1024896, "output": 128000 },
+                },
+            },
+        },
+    },
 }

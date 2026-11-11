@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": [
+    "opencode-vim-navigation@0.1.5",
+    "./plugins/backslash-newline"
+  ],
+  "keybinds": {
+    "prompt.stash": {
+      "key": "ctrl+s",
+      "preventDefault": true
+    },
+    "prompt.stash.pop": "ctrl+alt+s",
+    "prompt.stash.list": "<leader>p"
+  },
+  "theme": {
+    "name": "opencode"
+  },
+  "diffs": {
+    "wrap": "word"
+  },
+  "session": {
+    "sidebar": "hide",
+    "scrollbar": false,
+    "thinking": "show"
+  },
+  "animations": true,
+  "tabs": {
+    "mode": "auto"
+  }
+}
