@@ -683,6 +683,21 @@ return {
     },
     config = function(_, opts)
     require("sidekick").setup(opts)
+    Snacks.toggle({
+        name = "AI Suggestions",
+        get = function()
+            return require("sidekick.nes").enabled and vim.g.sidekick_copilot_completion ~= false
+        end,
+        set = function(enabled)
+            require("sidekick.nes").enable(enabled)
+            vim.g.sidekick_copilot_completion = enabled
+            if not enabled then
+                pcall(function()
+                    require("blink.cmp").hide()
+                end)
+            end
+        end,
+    }):map("<leader>ae")
     vim.api.nvim_create_autocmd("TabClosed", { callback = prune_tab_state })
     end,
   },

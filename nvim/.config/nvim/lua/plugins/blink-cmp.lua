@@ -93,6 +93,9 @@ return {
                     copilot = {
                         name = "copilot",
                         module = "blink-copilot",
+                        enabled = function()
+                            return vim.g.sidekick_copilot_completion ~= false
+                        end,
                         score_offset = 100, -- Give Copilot suggestions higher priority
                         async = true,
                     },
