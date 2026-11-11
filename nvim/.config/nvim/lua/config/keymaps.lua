@@ -46,8 +46,9 @@ end
 vim.keymap.set("n", "<C-v>", "<C-v>", { noremap = true, desc = "Visual block (default)" })
 vim.keymap.set("c", "<C-v>", "<C-r>+", { noremap = true, desc = "Paste from clipboard" })
 
--- Unbind Ctrl+Q in all modes (buffer-local mappings like telescope's still win inside pickers)
-vim.keymap.set({ "n", "i", "v", "c", "t" }, "<C-q>", "<Nop>", { noremap = true, desc = "Disabled" })
+-- Unbind Ctrl+Q everywhere except terminal mode, where it passes through to the terminal (sidekick)
+-- (buffer-local mappings like telescope's still win inside pickers)
+vim.keymap.set({ "n", "i", "v", "c" }, "<C-q>", "<Nop>", { noremap = true, desc = "Disabled" })
 
 -- Terminal mode clipboard mappings for better integration with sidekick
 vim.keymap.set("t", "<C-S-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
