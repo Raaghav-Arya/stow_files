@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llm-jwt-bridge/claude-sonnet-5-5",
+  "small_model": "llm-jwt-bridge/claude-haiku-5-5",
+  "provider": {
+    "llm-jwt-bridge": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "TI LLM Gateway (JWT bridge)",
+      "options": {
+        // Bridge strips /up and injects the Kerberos JWT; the key is ignored.
+        "baseURL": "http://127.0.0.1:17291/up/v1",
+        "apiKey": "sk-any"
+      },
+      "models": {
+        "claude-opus-5-5": { "name": "Claude Opus 5.5", "limit": { "context": 1000000, "output": 128000 } },
+        "claude-sonnet-5-5": { "name": "Claude Sonnet 5.5", "limit": { "context": 1000000, "output": 128000 } },
+        "claude-haiku-5-5": { "name": "Claude Haiku 5.5", "limit": { "context": 1000000, "output": 128000 } },
+        "onprem/mistral-large-4": { "name": "Mistral Large 4 (on-prem)", "limit": { "context": 1024896, "output": 128000 } }
+      }
+    }
+  }
+}
