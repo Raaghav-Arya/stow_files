@@ -231,7 +231,7 @@ export default Plugin.define({
                     client.session.active?.(),
                     client.shell.list(),
                 ]);
-                const running = active?.data ?? {};
+                const running = active?.data ?? active ?? {};
                 const childList = children?.data ?? [];
                 const agents = childList.filter(
                     (child: any) => running[child.id]?.type === "running",
@@ -309,7 +309,7 @@ export default Plugin.define({
                     const usage = () => contextFor(props.sessionID);
                     const contextText = () => {
                         const { used, limit } = usage();
-                        return `Context ${fmtTokens(used)}/${limit ? fmtTokens(limit) : "?"}`;
+                        return `Context: ${fmtTokens(used)}/${limit ? fmtTokens(limit) : "?"}`;
                     };
                     const contextFg = () => {
                         const { used, limit } = usage();
