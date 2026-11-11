@@ -54,8 +54,15 @@ vim.keymap.set({ "n", "i", "v", "c" }, "<C-q>", "<Nop>", { noremap = true, desc 
 vim.keymap.set("t", "<C-S-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
 vim.keymap.set("t", "<C-v>", '<C-\\><C-n>"+pa', { noremap = true, desc = "Paste from clipboard in terminal" })
 
--- Exit terminal mode with a single Esc (default); double-Esc unbound
-vim.keymap.set("t", "<Esc><Esc>", "<Nop>", { noremap = true, desc = "Disabled" })
+-- Pass Esc straight through to the terminal (e.g. sidekick) instead of exiting terminal mode.
+-- The old <Esc><Esc> mapping made Neovim wait out timeoutlen on every Esc, swallowing it.
+-- Exit terminal mode with <C-\><C-n> (default) instead.
+vim.keymap.set("t", "<Esc>", function()
+  local chan = vim.b.terminal_job_id
+  if chan then
+    vim.api.nvim_chan_send(chan, "\27")
+  end
+end, { noremap = true, desc = "Send Esc to terminal" })
 
 -- Navigate between Neovim and terminal windows
 vim.keymap.set("t", "<C-h>", "<C-\\><C-n><C-w>h", { noremap = true, desc = "Navigate left from terminal" })
