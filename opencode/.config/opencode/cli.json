@@ -1,8 +1,9 @@
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "plugins": [
-    "opencode-vim-navigation@0.1.4",
-    "./plugins/backslash-newline"
+    "/home/raaghav/projects/opencode/plugins/opencode-vim-navigation",
+    "./plugins/backslash-newline",
+    "./plugins/plan-review"
   ],
   "keybinds": {
     "prompt.stash": {
@@ -10,7 +11,12 @@
       "preventDefault": true
     },
     "prompt.stash.pop": "ctrl+alt+s",
-    "prompt.stash.list": "<leader>p"
+    "prompt.stash.list": "<leader>p",
+    "dialog.select.submit": "return,ctrl+y",
+    "prompt.autocomplete.complete": "tab,ctrl+y",
+    "form.option.prev": "up,k,ctrl+p",
+    "form.option.next": "down,j,ctrl+n",
+    "form.option.select": "return,ctrl+y"
   },
   "theme": {
     "name": "opencode"
@@ -21,10 +27,12 @@
   "session": {
     "sidebar": "hide",
     "scrollbar": false,
-    "thinking": "show"
+    "thinking": "hide",
+    "tps": true,
+    "verbosity": "high"
   },
   "animations": true,
   "tabs": {
-    "mode": "auto"
+    "mode": "off"
   }
 }

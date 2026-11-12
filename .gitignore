@@ -2,8 +2,3 @@
 /gws/.config/gws/credentials.enc
 /gws/.config/gws/.encryption_key
 /gws/.config/gws/token_cache.json
-
-# OpenCode runtime files inside the folded config directory.
-/opencode/.config/opencode/**/node_modules/
-/opencode/.config/opencode/**/package-lock.json
-/opencode/.config/opencode/service.json
