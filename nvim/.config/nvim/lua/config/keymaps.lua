@@ -14,21 +14,20 @@ for i = 1, 9 do
 end
 
 vim.keymap.set("n", "<leader><Tab>n", function()
-  vim.ui.input({ prompt = "Directory for new tab: " }, function(path)
+  vim.ui.input({ prompt = "New tab path: ", completion = "file" }, function(path)
     if not path or path == "" then
       return
     end
 
     path = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
-    if vim.fn.isdirectory(path) ~= 1 then
-      vim.notify("Not a directory: " .. path, vim.log.levels.ERROR)
-      return
+    if vim.fn.isdirectory(path) == 1 then
+      vim.cmd("tabnew")
+      vim.cmd("tcd " .. vim.fn.fnameescape(path))
+    else
+      vim.cmd("tabnew " .. vim.fn.fnameescape(path))
     end
-
-    vim.cmd("tabnew")
-    vim.cmd("tcd " .. vim.fn.fnameescape(path))
   end)
-end, { noremap = true, silent = true, desc = "New tab at directory" })
+end, { noremap = true, silent = true, desc = "New tab at prompted path" })
 
 -- Center cursor when scrolling
 vim.keymap.set({"n"}, "<C-d>", "<C-d>zz0", opts)

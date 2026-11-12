@@ -626,6 +626,7 @@ return {
         win = {
           keys = {
             stopinsert = false, -- pass <C-q> through to CLI apps (Pi navigation mode)
+            hide_ctrl_q = false, -- do not hide Sidekick on <C-q> in normal mode
             prompt = false, -- pass <C-p> through to Claude Code for navigation
             buffers = { "<c-t>", "buffers", mode = "nt", desc = "open buffer picker" },
             nav_left  = { "<c-h>", split_nav("left"),  mode = "t", desc = "navigate left (multiplexer-aware)" },
