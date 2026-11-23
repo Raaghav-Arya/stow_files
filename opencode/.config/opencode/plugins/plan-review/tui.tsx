@@ -92,6 +92,7 @@ function ReviewPanel(props: {
   let scroll: ScrollBoxRenderable | undefined
   const [navigation, setNavigation] = createSignal(false)
   let popMode: (() => void) | undefined
+  let initialized = false
   const toggleNavigation = () => {
     if (navigation()) {
       popMode?.()
@@ -130,7 +131,12 @@ function ReviewPanel(props: {
   })
   // If panel focus moves elsewhere, do not leave a navigation mode trapping input.
   createEffect(() => {
-    if ((!props.panel.focused || props.feedbackOpen()) && navigation()) leaveNavigation()
+    if (!props.panel.focused || props.feedbackOpen()) {
+      if (navigation()) leaveNavigation()
+    } else if (!initialized) {
+      initialized = true
+      toggleNavigation()
+    }
   })
   return (
     <box flexDirection="column" flexGrow={1} minHeight={0} gap={1} padding={1}>

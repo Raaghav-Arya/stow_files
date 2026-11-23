@@ -29,6 +29,7 @@ test("TUI uses the session-panel review view and does not create native forms", 
   assert.match(tui, /keyInput\.prependListener\("keypress", onNavigationKey\)/)
   assert.match(tui, /reviewNavigationAction\(event, navigation\(\)\)/)
   assert.match(tui, /if \(!props\.panel\.focused \|\| props\.feedbackOpen\(\)\) return/)
+  assert.match(tui, /else if \(!initialized\) \{\s*initialized = true\s*toggleNavigation\(\)/)
   assert.match(tui, /tableOptions=\{\{ style: "grid"/)
   assert.match(tui, /fg=\{props\.context\.theme\.markdown\.text\}/)
 })
